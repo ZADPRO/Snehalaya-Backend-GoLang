@@ -8,6 +8,7 @@ import (
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
+
 )
 
 func AdminLoginController() gin.HandlerFunc {
@@ -38,8 +39,8 @@ func AdminLoginController() gin.HandlerFunc {
 		}
 
 		if resVal.Status {
-			response["email"] = resVal.Email
-			response["roleType"] = resVal.RoleType
+			response["user"] = resVal.User
+			response["token"] = resVal.Token
 		}
 
 		c.JSON(http.StatusOK, gin.H{
@@ -47,19 +48,3 @@ func AdminLoginController() gin.HandlerFunc {
 		})
 	}
 }
-
-// func CreateNewEmployeeController() gin.HandlerFunc {
-// 	return func(c *gin.Context) {
-// 		idValue, idExists := c.Get("id")
-// 		roleIdValue, roleIdExists := c.Get("roleId")
-
-// 		if !idExists || !roleIdExists {
-// 			c.JSON(http.StatusUnauthorized, gin.H{
-// 				"status":  false,
-// 				"message": "User ID, Role ID not found in request context.",
-// 			})
-// 			return
-// 		}
-
-// 	}
-// }

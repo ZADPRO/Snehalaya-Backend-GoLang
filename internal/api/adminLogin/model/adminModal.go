@@ -8,11 +8,11 @@ type AdminLoginReq struct {
 }
 
 type LoginResponse struct {
-	Status   bool   `json:"status"`
-	Message  string `json:"message"`
-	RoleType string `json:"roleType"`
-	Token    string `json:"token"`
-	Email    string `json:"email"`
+	Status  bool                `json:"status"`
+	Message string              `json:"message"`
+	User    *AdminLoginModelReq `json:"user,omitempty"`
+	Token   string              `json:"token,omitempty"`
+	Email   string              `json:"email"`
 }
 
 type AdminLoginModelReq struct {

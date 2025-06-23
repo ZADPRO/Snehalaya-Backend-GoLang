@@ -3,6 +3,7 @@ package service
 import (
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/adminLogin/model"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/adminLogin/query"
+	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	becrypt "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Bcrypt"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
@@ -54,9 +55,12 @@ func AdminLoginService(db *gorm.DB, reqVal model.AdminLoginReq) model.LoginRespo
 
 	log.Info("Login service - Logged Successfully for Username : " + reqVal.Username)
 
+	log.Info("\n\n\nToken Testing --------->" + accesstoken.CreateToken(user.UserId, user.RoleTypeId, user.UserBranchId))
+
 	return model.LoginResponse{
-		Status:   true,
-		Message:  "Logged in Successfully",
-		RoleType: user.RoleTypeId,
+		Status:  true,
+		Message: "Logged in Successfully",
+		User:    &user,
+		Token:   accesstoken.CreateToken(user.UserId, user.RoleTypeId, user.UserBranchId),
 	}
 }
