@@ -1,11 +1,14 @@
 package routes
 
 import (
-	"net/http"
-
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/adminLogin/controller"
+	"github.com/gin-gonic/gin"
 )
 
-func RegisterAdminRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/admin", controller.GetAdmin)
+func RegisterAdminRoutes(router *gin.Engine) {
+	route := router.Group("/api/v1/admin")
+	// route.POST("/adminLogin", accesstoken.JWTMiddleware(), controller.GetAdmin())
+
+	route.POST("/login", controller.AdminLoginController())
+	// route.POST("/createNewEmployee", controller.CreateNewEmployeeController())
 }
