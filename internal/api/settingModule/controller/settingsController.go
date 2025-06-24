@@ -225,12 +225,28 @@ func GetAllSubCategoriesController() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		log.Info("Get All SubCategories Controller invoked")
 
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			// Handle error: ID is missing from context (e.g., middleware didn't set it)
+			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return // Stop processing
+		}
+
 		dbConnt, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
 		data := settingsService.GetAllSubCategoriesService(dbConnt)
 		log.Info("Fetched subcategories: ", data)
-		c.JSON(http.StatusOK, gin.H{"status": true, "data": data})
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": data, "token": token})
 	}
 }
 
@@ -238,6 +254,19 @@ func UpdateSubCategoryController() gin.HandlerFunc {
 	log := logger.InitLogger()
 	return func(c *gin.Context) {
 		log.Info("Update SubCategory Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			// Handle error: ID is missing from context (e.g., middleware didn't set it)
+			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return // Stop processing
+		}
 
 		var sub model.SubCategory
 		if err := c.ShouldBindJSON(&sub); err != nil {
@@ -259,8 +288,10 @@ func UpdateSubCategoryController() gin.HandlerFunc {
 			return
 		}
 
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
 		log.Info("Sub category updated successfully")
-		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Sub category updated"})
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Sub category updated", "token": token})
 	}
 }
 
@@ -268,6 +299,19 @@ func DeleteSubCategoryController() gin.HandlerFunc {
 	log := logger.InitLogger()
 	return func(c *gin.Context) {
 		log.Info("Delete SubCategory Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			// Handle error: ID is missing from context (e.g., middleware didn't set it)
+			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return // Stop processing
+		}
 
 		id := c.Param("id")
 		dbConnt, sqlDB := db.InitDB()
@@ -279,7 +323,9 @@ func DeleteSubCategoryController() gin.HandlerFunc {
 			return
 		}
 
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
 		log.Info("Sub category deleted successfully")
-		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Sub category deleted"})
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Sub category deleted", "token": token})
 	}
 }
