@@ -8,7 +8,6 @@ import (
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
-
 )
 
 func AdminLoginController() gin.HandlerFunc {

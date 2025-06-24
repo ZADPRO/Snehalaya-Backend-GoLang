@@ -7,8 +7,6 @@ import (
 
 func RegisterAdminRoutes(router *gin.Engine) {
 	route := router.Group("/api/v1/admin")
-	// route.POST("/adminLogin", accesstoken.JWTMiddleware(), controller.GetAdmin())
 
 	route.POST("/login", controller.AdminLoginController())
-	// route.POST("/createNewEmployee", controller.CreateNewEmployeeController())
 }

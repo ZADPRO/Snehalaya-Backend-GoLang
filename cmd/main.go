@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/adminLogin/routes"
+	settingsRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/routes"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -38,6 +39,7 @@ func main() {
 
 	// API CALLS
 	routes.RegisterAdminRoutes(r)
+	settingsRoutes.SettingsAdminRoutes(r)
 
 	// PING PONG API CALL FOR TESTING
 	r.GET("/ping", func(c *gin.Context) {

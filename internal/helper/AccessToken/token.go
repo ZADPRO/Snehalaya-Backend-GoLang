@@ -9,6 +9,7 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+
 )
 
 // CreateToken generates a JWT token for a given user ID and expiration duration.
@@ -68,6 +69,7 @@ func JWTMiddleware() gin.HandlerFunc {
 		log := logger.InitLogger()
 
 		tokenString := c.GetHeader("Authorization")
+		log.Info("tokenString", tokenString)
 		if tokenString == "" {
 			log.Error("Missing Token")
 			c.JSON(200, gin.H{"error": "Missing token"})
@@ -77,6 +79,7 @@ func JWTMiddleware() gin.HandlerFunc {
 
 		// Remove "Bearer " prefix if present
 		tokenString = strings.TrimPrefix(tokenString, "Bearer ")
+		log.Info("Token string prefix", tokenString)
 
 		// Validate the JWT token
 		token, err := ValidateJWT(tokenString)
