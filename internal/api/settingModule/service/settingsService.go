@@ -10,6 +10,8 @@ import (
 
 )
 
+// CATEGORIES SERVICE
+
 func CreateCategoryService(db *gorm.DB, category *model.Category) error {
 	log := logger.InitLogger()
 
@@ -87,5 +89,93 @@ func DeleteCategoryService(db *gorm.DB, id string) error {
 			"isDelete":  true,
 			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
 			"updatedBy": "Admin",
+		}).Error
+}
+
+// SUB CATEGORIES SERVICE
+func CreateSubCategoryService(db *gorm.DB, sub *model.SubCategory) error {
+	log := logger.InitLogger()
+	log.Info("Inserting SubCategory: ", sub)
+
+	var existing model.SubCategory
+	err := db.Table("SubCategories").
+		Where(`("subCategoryName" = ? OR "subCategoryCode" = ?) AND "isDelete" = false`, sub.SubCategoryName, sub.SubCategoryCode).
+		First(&existing).Error
+
+	if err == nil {
+		log.Error("Duplicate SubCategory found")
+		return fmt.Errorf("duplicate value found")
+	} else if err != gorm.ErrRecordNotFound {
+		log.Error("Error checking for duplicate: " + err.Error())
+		return err
+	}
+
+	sub.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
+	sub.CreatedBy = "Admin"
+	return db.Table("SubCategories").Create(sub).Error
+}
+
+func GetAllSubCategoriesService(db *gorm.DB) []model.SubCategory {
+	log := logger.InitLogger()
+	var subs []model.SubCategory
+
+	err := db.Table("SubCategories").Where(`"isDelete" = false`).Find(&subs).Error
+	if err != nil {
+		log.Error("Failed to fetch subcategories: " + err.Error())
+	}
+	return subs
+}
+
+func UpdateSubCategoryService(db *gorm.DB, sub *model.SubCategory) error {
+	log := logger.InitLogger()
+	log.Info("Updating SubCategory ID: ", sub.RefSubCategoryId)
+
+	// 1. Check for duplicates
+	var existing model.SubCategory
+	err := db.Table("SubCategories").
+		Where(`("subCategoryName" = ? OR "subCategoryCode" = ?) AND "refSubCategoryId" != ? AND "isDelete" = false`,
+			sub.SubCategoryName, sub.SubCategoryCode, sub.RefSubCategoryId).
+		First(&existing).Error
+
+	if err == nil {
+		log.Error("Duplicate SubCategory found")
+		return fmt.Errorf("duplicate value found")
+	} else if err != gorm.ErrRecordNotFound {
+		log.Error("Error checking for duplicate: " + err.Error())
+		return err
+	}
+
+	// 2. Update
+	updateData := map[string]interface{}{
+		"subCategoryName": sub.SubCategoryName,
+		"subCategoryCode": sub.SubCategoryCode,
+		"refCategoryId":   sub.RefCategoryId,
+		"isActive":        sub.IsActive,
+		"updatedAt":       time.Now().Format("2006-01-02 15:04:05"),
+		"updatedBY":       "Admin",
+	}
+
+	err = db.Table("SubCategories").
+		Where(`"refSubCategoryId" = ?`, sub.RefSubCategoryId).
+		Updates(updateData).Error
+
+	if err != nil {
+		log.Error("Failed to update subcategory: " + err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func DeleteSubCategoryService(db *gorm.DB, id string) error {
+	log := logger.InitLogger()
+	log.Info("Soft deleting SubCategory with ID: ", id)
+
+	return db.Table("SubCategories").
+		Where(`"refSubCategoryId" = ?`, id).
+		Updates(map[string]interface{}{
+			"isDelete":  true,
+			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
+			"updatedBY": "Admin",
 		}).Error
 }

@@ -4,14 +4,20 @@ import (
 	settingsController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
-
 )
 
 func SettingsAdminRoutes(router *gin.Engine) {
 	route := router.Group("/api/v1/admin/settings")
 
+	// CATEGORIES ROUTES
 	route.POST("/categories", accesstoken.JWTMiddleware(), settingsController.CreateCategoryController())
 	route.GET("/categories", accesstoken.JWTMiddleware(), settingsController.GetAllCategoriesController())
 	route.PUT("/categories", accesstoken.JWTMiddleware(), settingsController.UpdateCategoryController())
 	route.DELETE("/categories/:id", accesstoken.JWTMiddleware(), settingsController.DeleteCategoryController())
+
+	// SUB CATEGORIES ROUTES
+	route.POST("/subcategories", accesstoken.JWTMiddleware(), settingsController.CreateSubCategoryController())
+	route.GET("/subcategories", accesstoken.JWTMiddleware(), settingsController.GetAllSubCategoriesController())
+	route.PUT("/subcategories", accesstoken.JWTMiddleware(), settingsController.UpdateSubCategoryController())
+	route.DELETE("/subcategories/:id", accesstoken.JWTMiddleware(), settingsController.DeleteSubCategoryController())
 }

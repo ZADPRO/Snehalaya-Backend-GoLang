@@ -12,6 +12,8 @@ import (
 
 )
 
+// CATEGORIES CONTROLLER
+
 func CreateCategoryController() gin.HandlerFunc {
 	log := logger.InitLogger()
 	return func(c *gin.Context) {
@@ -168,5 +170,116 @@ func DeleteCategoryController() gin.HandlerFunc {
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Category deleted successfully", "token": token})
+	}
+}
+
+// SUB CATEGORIES CONTROLLER
+
+func CreateSubCategoryController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("Create SubCategory Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			// Handle error: ID is missing from context (e.g., middleware didn't set it)
+			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return // Stop processing
+		}
+
+		var subCateogry model.SubCategory
+		if err := c.ShouldBindJSON(&subCateogry); err != nil {
+			log.Error("Invalid request body : " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		if err := settingsService.CreateSubCategoryService(dbConnt, &subCateogry); err != nil {
+			log.Error("Service error: " + err.Error())
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to create sub category"})
+			}
+			return
+		}
+
+		log.Info("Sub category created successfully")
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Sub category created", "token": token})
+	}
+}
+
+func GetAllSubCategoriesController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("Get All SubCategories Controller invoked")
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		data := settingsService.GetAllSubCategoriesService(dbConnt)
+		log.Info("Fetched subcategories: ", data)
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": data})
+	}
+}
+
+func UpdateSubCategoryController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("Update SubCategory Controller invoked")
+
+		var sub model.SubCategory
+		if err := c.ShouldBindJSON(&sub); err != nil {
+			log.Error("Invalid request body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		if err := settingsService.UpdateSubCategoryService(dbConnt, &sub); err != nil {
+			log.Error("Service error: " + err.Error())
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update sub category"})
+			}
+			return
+		}
+
+		log.Info("Sub category updated successfully")
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Sub category updated"})
+	}
+}
+
+func DeleteSubCategoryController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("Delete SubCategory Controller invoked")
+
+		id := c.Param("id")
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		if err := settingsService.DeleteSubCategoryService(dbConnt, id); err != nil {
+			log.Error("Service error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to delete sub category"})
+			return
+		}
+
+		log.Info("Sub category deleted successfully")
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Sub category deleted"})
 	}
 }
