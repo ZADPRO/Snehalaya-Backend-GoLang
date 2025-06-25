@@ -9,7 +9,6 @@ import (
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
-
 )
 
 // CATEGORIES CONTROLLER
@@ -145,20 +144,38 @@ func DeleteCategoryController() gin.HandlerFunc {
 		branchIdValue, branchIdExists := c.Get("branchId")
 
 		if !idExists || !roleIdExists || !branchIdExists {
-			// Handle error: ID is missing from context (e.g., middleware didn't set it)
-			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+			c.JSON(http.StatusUnauthorized, gin.H{
 				"status":  false,
 				"message": "User ID, RoleID, Branch ID not found in request context.",
 			})
-			return // Stop processing
+			return
 		}
 
-		id := c.Param("id")
+		categoryId := c.Param("id")
+		forceDelete := c.DefaultQuery("forceDelete", "false") == "true"
 
 		dbConnt, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
-		err := settingsService.DeleteCategoryService(dbConnt, id)
+		subcategories, err := settingsService.GetSubcategoriesByCategory(dbConnt, categoryId)
+		if err != nil {
+			log.Error("Error fetching subcategories: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Internal server error"})
+			return
+		}
+
+		if len(subcategories) > 0 && !forceDelete {
+			// Return subcategories and ask for confirmation
+			c.JSON(http.StatusConflict, gin.H{
+				"status":             false,
+				"message":            "This category contains subcategories. Deleting it will make them idle.",
+				"subcategories":      subcategories,
+				"confirmationNeeded": true,
+			})
+			return
+		}
+
+		err = settingsService.DeleteCategoryService(dbConnt, categoryId)
 		if err != nil {
 			log.Error("Service error: " + err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to delete category"})

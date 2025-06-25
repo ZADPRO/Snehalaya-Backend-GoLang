@@ -9,7 +9,6 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
-
 )
 
 // CreateToken generates a JWT token for a given user ID and expiration duration.
@@ -19,7 +18,7 @@ func CreateToken(id any, roleId any, branchid any) string {
 		"id":       id,
 		"roleId":   roleId,
 		"branchId": branchid,
-		"exp":      time.Now().Add(20 * time.Minute).Unix(), // expires after 'exp' duration
+		"exp":      time.Now().Add(24 * time.Hour).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

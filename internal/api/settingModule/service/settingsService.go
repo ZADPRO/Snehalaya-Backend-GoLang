@@ -79,6 +79,15 @@ func UpdateCategoryService(db *gorm.DB, category *model.Category) error {
 		}).Error
 }
 
+func GetSubcategoriesByCategory(db *gorm.DB, categoryId string) ([]model.SubCategory, error) {
+	var subcategories []model.SubCategory
+	err := db.Table("SubCategories").
+		Where(`"refCategoryId" = ? AND "isDelete" = false`, categoryId).
+		Find(&subcategories).Error
+
+	return subcategories, err
+}
+
 func DeleteCategoryService(db *gorm.DB, id string) error {
 	log := logger.InitLogger()
 	log.Info("Soft deleting category with ID: ", id)
