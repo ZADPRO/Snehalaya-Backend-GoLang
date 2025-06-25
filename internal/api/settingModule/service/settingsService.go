@@ -8,7 +8,6 @@ import (
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
-
 )
 
 // CATEGORIES SERVICE
@@ -220,7 +219,8 @@ func CreateBranchService(db *gorm.DB, branch *model.Branch) error {
 func GetAllBranchesService(db *gorm.DB) []model.Branch {
 	log := logger.InitLogger()
 	var branches []model.Branch
-	err := db.Table("Branches").Where("isDelete = false").Find(&branches).Error
+
+	err := db.Table(`"Branches"`).Where(`"isDelete" = false`).Find(&branches).Error
 	if err != nil {
 		log.Error("Failed to fetch branches: " + err.Error())
 	}
@@ -232,7 +232,7 @@ func UpdateBranchService(db *gorm.DB, branch *model.Branch) error {
 	log.Info("Updating Branch ID: ", branch.RefBranchId)
 
 	var existing model.Branch
-	err := db.Table("Branches").
+	err := db.Table(`"Branches"`).
 		Where(`("refBranchName" = ? OR "refBranchCode" = ?) AND "refBranchId" != ? AND "isDelete" = false`,
 			branch.RefBranchName, branch.RefBranchCode, branch.RefBranchId).
 		First(&existing).Error
@@ -255,21 +255,21 @@ func UpdateBranchService(db *gorm.DB, branch *model.Branch) error {
 		"isMainBranch":  branch.IsMainBranch,
 		"isActive":      branch.IsActive,
 		"updatedAt":     time.Now().Format("2006-01-02 15:04:05"),
-		"updatedBY":     "Admin",
+		"updatedBy":     "Admin",
 	}
 
-	return db.Table("Branches").Where("refBranchId = ?", branch.RefBranchId).Updates(updateData).Error
+	return db.Table(`"Branches"`).Where(`"refBranchId" = ?`, branch.RefBranchId).Updates(updateData).Error
 }
 
 func DeleteBranchService(db *gorm.DB, id string) error {
 	log := logger.InitLogger()
 	log.Info("Soft deleting Branch with ID: ", id)
 
-	return db.Table("Branches").
-		Where("refBranchId = ?", id).
+	return db.Table(`"Branches"`).
+		Where(`"refBranchId" = ?`, id).
 		Updates(map[string]interface{}{
 			"isDelete":  true,
 			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
-			"updatedBY": "Admin",
+			"updatedBy": "Admin",
 		}).Error
 }
