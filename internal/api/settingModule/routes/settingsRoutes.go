@@ -20,4 +20,10 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route.GET("/subcategories", accesstoken.JWTMiddleware(), settingsController.GetAllSubCategoriesController())
 	route.PUT("/subcategories", accesstoken.JWTMiddleware(), settingsController.UpdateSubCategoryController())
 	route.DELETE("/subcategories/:id", accesstoken.JWTMiddleware(), settingsController.DeleteSubCategoryController())
+
+	// BRANCHES ROUTES
+	route.POST("/branches", accesstoken.JWTMiddleware(), settingsController.CreateBranchController())
+	route.GET("/branches", accesstoken.JWTMiddleware(), settingsController.GetAllBranchesController())
+	route.PUT("/branches", accesstoken.JWTMiddleware(), settingsController.UpdateBranchController())
+	route.DELETE("/branches/:id", accesstoken.JWTMiddleware(), settingsController.DeleteBranchController())
 }

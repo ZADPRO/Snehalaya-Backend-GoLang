@@ -346,3 +346,139 @@ func DeleteSubCategoryController() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Sub category deleted", "token": token})
 	}
 }
+
+// BRANCHES CONTROLLER
+func CreateBranchController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("Create Branch Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var branch model.Branch
+		if err := c.ShouldBindJSON(&branch); err != nil {
+			log.Error("Invalid request body : " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		if err := settingsService.CreateBranchService(dbConnt, &branch); err != nil {
+			log.Error("Service error: " + err.Error())
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to create branch"})
+			}
+			return
+		}
+
+		log.Info("Branch created successfully")
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch created", "token": token})
+	}
+}
+
+func GetAllBranchesController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("Get All Branches Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found in request context."})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		branches := settingsService.GetAllBranchesService(dbConnt)
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": branches, "token": token})
+	}
+}
+
+func UpdateBranchController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("Update Branch Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found in request context."})
+			return
+		}
+
+		var branch model.Branch
+		if err := c.ShouldBindJSON(&branch); err != nil {
+			log.Error("Invalid request body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		if err := settingsService.UpdateBranchService(dbConnt, &branch); err != nil {
+			log.Error("Service error: " + err.Error())
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update branch"})
+			}
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch updated", "token": token})
+	}
+}
+
+func DeleteBranchController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("Delete Branch Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found in request context."})
+			return
+		}
+
+		id := c.Param("id")
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		if err := settingsService.DeleteBranchService(dbConnt, id); err != nil {
+			log.Error("Service error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to delete branch"})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch deleted", "token": token})
+	}
+}

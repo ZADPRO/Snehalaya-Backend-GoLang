@@ -1,6 +1,7 @@
 package settingsService
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -182,6 +183,90 @@ func DeleteSubCategoryService(db *gorm.DB, id string) error {
 
 	return db.Table("SubCategories").
 		Where(`"refSubCategoryId" = ?`, id).
+		Updates(map[string]interface{}{
+			"isDelete":  true,
+			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
+			"updatedBY": "Admin",
+		}).Error
+}
+
+// BRANCHES SERVICE
+func CreateBranchService(db *gorm.DB, branch *model.Branch) error {
+	log := logger.InitLogger()
+	log.Info("Inserting Branch: ", branch)
+
+	var existing model.Branch
+
+	// Ensure exact column names match your PostgreSQL schema
+	err := db.Table(`"Branches"`).
+		Where(`("refBranchName" = ? OR "refBranchCode" = ?) AND "isDelete" = false`, branch.RefBranchName, branch.RefBranchCode).
+		First(&existing).Error
+
+	if err == nil {
+		log.Error("Duplicate Branch found")
+		return fmt.Errorf("duplicate value found")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Error("Error checking for duplicate: " + err.Error())
+		return err
+	}
+
+	branch.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
+	branch.CreatedBy = "Admin"
+
+	// Always use quoted table name to preserve case
+	return db.Table(`"Branches"`).Create(branch).Error
+}
+
+func GetAllBranchesService(db *gorm.DB) []model.Branch {
+	log := logger.InitLogger()
+	var branches []model.Branch
+	err := db.Table("Branches").Where("isDelete = false").Find(&branches).Error
+	if err != nil {
+		log.Error("Failed to fetch branches: " + err.Error())
+	}
+	return branches
+}
+
+func UpdateBranchService(db *gorm.DB, branch *model.Branch) error {
+	log := logger.InitLogger()
+	log.Info("Updating Branch ID: ", branch.RefBranchId)
+
+	var existing model.Branch
+	err := db.Table("Branches").
+		Where(`("refBranchName" = ? OR "refBranchCode" = ?) AND "refBranchId" != ? AND "isDelete" = false`,
+			branch.RefBranchName, branch.RefBranchCode, branch.RefBranchId).
+		First(&existing).Error
+
+	if err == nil {
+		log.Error("Duplicate Branch found")
+		return fmt.Errorf("duplicate value found")
+	} else if err != gorm.ErrRecordNotFound {
+		log.Error("Error checking for duplicate: " + err.Error())
+		return err
+	}
+
+	updateData := map[string]interface{}{
+		"refBranchName": branch.RefBranchName,
+		"refBranchCode": branch.RefBranchCode,
+		"refLocation":   branch.RefLocation,
+		"refMobile":     branch.RefMobile,
+		"refEmail":      branch.RefEmail,
+		"refBTId":       branch.RefBTId,
+		"isMainBranch":  branch.IsMainBranch,
+		"isActive":      branch.IsActive,
+		"updatedAt":     time.Now().Format("2006-01-02 15:04:05"),
+		"updatedBY":     "Admin",
+	}
+
+	return db.Table("Branches").Where("refBranchId = ?", branch.RefBranchId).Updates(updateData).Error
+}
+
+func DeleteBranchService(db *gorm.DB, id string) error {
+	log := logger.InitLogger()
+	log.Info("Soft deleting Branch with ID: ", id)
+
+	return db.Table("Branches").
+		Where("refBranchId = ?", id).
 		Updates(map[string]interface{}{
 			"isDelete":  true,
 			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
