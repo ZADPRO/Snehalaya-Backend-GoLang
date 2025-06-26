@@ -12,10 +12,10 @@ import (
 func CreateSupplier(db *gorm.DB, supplier *model.Supplier) error {
 	log := logger.InitLogger()
 
-	// Check for duplicate using combination of name, company name and code
+	// Check for duplicates among non-deleted records
 	var existing model.Supplier
 	err := db.Table("Supplier").
-		Where(`"supplierName" = ? AND "supplierCompanyName" = ? AND "supplierCode" = ?`,
+		Where(`"supplierName" = ? AND "supplierCompanyName" = ? AND "supplierCode" = ? AND "isDelete" = false`,
 			supplier.SupplierName, supplier.SupplierCompanyName, supplier.SupplierCode).
 		First(&existing).Error
 
@@ -27,34 +27,43 @@ func CreateSupplier(db *gorm.DB, supplier *model.Supplier) error {
 		return err
 	}
 
-	// Set metadata and create new supplier
+	// Set metadata
 	supplier.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
 	supplier.CreatedBy = "Admin"
+	supplier.IsDelete = false // mark as not deleted
 
 	return db.Table("Supplier").Create(supplier).Error
 }
 
 func GetAllSuppliers(db *gorm.DB) ([]model.Supplier, error) {
 	var suppliers []model.Supplier
-	err := db.Table("Supplier").Find(&suppliers).Error
+	err := db.Table("Supplier").
+		Where(`"isDelete" = false`).
+		Find(&suppliers).Error
 	return suppliers, err
 }
 
 func GetSupplierById(db *gorm.DB, id string) (model.Supplier, error) {
 	var supplier model.Supplier
-	fmt.Println("id", id)
-	err := db.Table("Supplier").Where(`"supplierId" = ?`, id).First(&supplier).Error
+	err := db.Table("Supplier").
+		Where(`"supplierId" = ? AND "isDelete" = false`, id).
+		First(&supplier).Error
 	return supplier, err
 }
-
 func UpdateSupplier(db *gorm.DB, supplier *model.Supplier) error {
 	supplier.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
 	supplier.UpdatedBy = "Admin"
 	return db.Table("Supplier").
-		Where("supplierId = ?", supplier.SupplierID).
+		Where(`"supplierId" = ?`, supplier.SupplierID).
 		Updates(supplier).Error
 }
 
 func DeleteSupplier(db *gorm.DB, id string) error {
-	return db.Table("Supplier").Where("supplierId = ?", id).Delete(&model.Supplier{}).Error
+	return db.Table("Supplier").
+		Where(`"supplierId" = ?`, id).
+		Updates(map[string]interface{}{
+			"isDelete":  true,
+			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
+			"updatedBy": "Admin",
+		}).Error
 }

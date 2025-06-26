@@ -25,4 +25,5 @@ type Supplier struct {
 	CreatedBy              string `json:"createdBy" gorm:"column:createdBy"`
 	UpdatedAt              string `json:"updatedAt" gorm:"column:updatedAt"`
 	UpdatedBy              string `json:"updatedBy" gorm:"column:updatedBy"`
+	IsDelete               bool   `json:"isDelete" gorm:"column:isDelete"`
 }
