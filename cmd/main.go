@@ -8,10 +8,12 @@ import (
 
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/adminLogin/routes"
 	settingsRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/routes"
+	supplierRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/supplierModule/routes"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+
 )
 
 func main() {
@@ -40,6 +42,7 @@ func main() {
 	// API CALLS
 	routes.RegisterAdminRoutes(r)
 	settingsRoutes.SettingsAdminRoutes(r)
+	supplierRoutes.SupplierRoutes(r)
 
 	// PING PONG API CALL FOR TESTING
 	r.GET("/ping", func(c *gin.Context) {

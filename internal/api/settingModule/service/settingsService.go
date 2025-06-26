@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"time"
 
+	transactionLogger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/helper/transactions/service"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
+
 )
 
 // CATEGORIES SERVICE
@@ -32,7 +34,11 @@ func CreateCategoryService(db *gorm.DB, category *model.Category) error {
 	// Proceed with creation
 	category.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
 	category.CreatedBy = "Admin"
-	return db.Table("Categories").Create(category).Error
+	err = db.Table("Categories").Create(category).Error
+	if err == nil {
+		_ = transactionLogger.LogTransaction(db, 1, "Admin", 2, "Category Created: "+category.CategoryName)
+	}
+	return err
 }
 
 func GetAllCategoriesService(db *gorm.DB) []model.Category {
@@ -70,6 +76,8 @@ func UpdateCategoryService(db *gorm.DB, category *model.Category) error {
 	// Proceed with update
 	category.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
 	category.UpdatedBy = "Admin"
+	_ = transactionLogger.LogTransaction(db, 1, "Admin", 3, "Category Updated: "+category.CategoryName)
+
 	return db.Table("Categories").
 		Where(`"refCategoryid" = ?`, category.RefCategoryId).
 		Updates(map[string]interface{}{
@@ -91,6 +99,7 @@ func GetSubcategoriesByCategory(db *gorm.DB, categoryId string) ([]model.SubCate
 func DeleteCategoryService(db *gorm.DB, id string) error {
 	log := logger.InitLogger()
 	log.Info("Soft deleting category with ID: ", id)
+	
 
 	return db.Table("Categories").
 		Where(`"refCategoryid" = ?`, id).
