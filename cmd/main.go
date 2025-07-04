@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/adminLogin/routes"
+	productRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/routes"
 	imageUploadRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/productsImageUpload/routes"
 	settingsRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/routes"
 	supplierRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/supplierModule/routes"
@@ -44,6 +45,7 @@ func main() {
 	settingsRoutes.SettingsAdminRoutes(r)
 	supplierRoutes.SupplierRoutes(r)
 	imageUploadRoutes.ImageUploadRoutes(r)
+	productRoutes.ProductManagementRoutes(r)
 
 	// PING PONG API CALL FOR TESTING
 	r.GET("/ping", func(c *gin.Context) {
