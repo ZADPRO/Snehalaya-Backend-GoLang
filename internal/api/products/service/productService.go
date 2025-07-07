@@ -103,6 +103,7 @@ func UpdatePOProduct(db *gorm.DB, product *productModel.POProduct) error {
 	return db.Table("POProducts").
 		Where(`"poId" = ?`, product.POId).
 		Updates(map[string]interface{}{
+			"poName":        product.PoName,
 			"poDescription": product.PoDescription,
 			"poHSN":         product.PoHSN,
 			"poQuantity":    product.PoQuantity,

@@ -29,3 +29,15 @@ type AdminLoginModelReq struct {
 	UCDPassword       string `json:"refUACPassword" gorm:"column:refUACPassword"`
 	UCDHashedPassword string `json:"refUACHashedPassword" gorm:"column:refUACHashedPassword"`
 }
+
+type OTPVerification struct {
+	ID         int    `gorm:"primaryKey" json:"-"`
+	Email      string `gorm:"column:email"`
+	OTP        string `gorm:"column:otp"`
+	ExpiresAt  string `gorm:"column:expires_at"` // stored as text in DB
+	IsVerified bool   `gorm:"column:is_verified"`
+	CreatedAt  string `gorm:"column:createdAt"`
+	CreatedBy  string `gorm:"column:createdBy"`
+	UpdatedAt  string `gorm:"column:updatedAt"`
+	UpdatedBy  string `gorm:"column:updatedBy"`
+}

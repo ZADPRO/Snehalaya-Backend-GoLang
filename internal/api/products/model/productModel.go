@@ -2,6 +2,7 @@ package productModel
 
 type POProduct struct {
 	POId          int    `json:"poId" gorm:"column:poId;primaryKey;autoIncrement"`
+	PoName        string `json:"poName" gorm:"column:poName"`
 	PoDescription string `json:"poDescription" gorm:"column:poDescription"`
 	PoSKU         string `json:"poSKU" gorm:"column:poSKU"`
 	PoHSN         string `json:"poHSN" gorm:"column:poHSN"`
