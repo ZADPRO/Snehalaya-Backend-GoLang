@@ -41,3 +41,70 @@ type Branch struct {
 	UpdatedBy     string `gorm:"column:updatedBy" json:"updatedBy"`
 	IsDelete      bool   `gorm:"column:isDelete" json:"isDelete"`
 }
+
+type RoleType struct {
+	RefRTId   int    `json:"refRTId" gorm:"column:refRTId"`
+	RefRTName string `json:"refRTName" gorm:"column:refRTName"`
+}
+
+func (RoleType) TableName() string {
+	return "RoleType"
+}
+
+type User struct {
+	RefUserId          int    `gorm:"primaryKey;autoIncrement;column:refUserId"`
+	RefRTId            int    `gorm:"column:refRTId"`
+	RefUserFName       string `gorm:"column:refUserFName"`
+	RefUserLName       string `gorm:"column:refUserLName"`
+	RefUserDesignation string `gorm:"column:refUserDesignation"`
+	RefUserStatus      string `gorm:"column:refUserStatus"`
+	RefUserBranchId    int    `gorm:"column:refUserBranchId"`
+	CreatedAt          string `gorm:"column:createdAt"`
+	CreatedBy          string `gorm:"column:createdBy"`
+	UpdatedAt          string `gorm:"column:updatedAt"`
+	UpdatedBy          string `gorm:"column:updatedBy"`
+	IsDelete           bool   `json:"isDelete" gorm:"column:isDelete"`
+}
+
+type UserAuth struct {
+	RefUACId             int    `gorm:"primaryKey;autoIncrement;column:refUACId"`
+	RefUserId            int    `gorm:"column:refUserId"`
+	RefUACPassword       string `gorm:"column:refUACPassword"`
+	RefUACHashedPassword string `gorm:"column:refUACHashedPassword"`
+	RefUACUsername       string `gorm:"column:refUACUsername"`
+	CreatedAt            string `gorm:"column:createdAt"`
+	CreatedBy            string `gorm:"column:createdBy"`
+	UpdatedAt            string `gorm:"column:updatedAt"`
+	UpdatedBy            string `gorm:"column:updatedBy"`
+}
+
+type UserCommunication struct {
+	RefUserComDetId int    `gorm:"primaryKey;autoIncrement;column:refUserComDetId"`
+	RefUserId       int    `gorm:"column:refUserId"`
+	RefUCDMobile    string `gorm:"column:refUCDMobile"`
+	RefUCDEmail     string `gorm:"column:refUCDEmail"`
+	RefUCDDoorNo    string `gorm:"column:refUCDDoorNo"`
+	RefUCDStreet    string `gorm:"column:refUCDStreet"`
+	RefUCDCity      string `gorm:"column:refUCDCity"`
+	RefUCDState     string `gorm:"column:refUCDState"`
+	CreatedAt       string `gorm:"column:createdAt"`
+	CreatedBy       string `gorm:"column:createdBy"`
+	UpdatedAt       string `gorm:"column:updatedAt"`
+	UpdatedBy       string `gorm:"column:updatedBy"`
+}
+
+type EmployeePayload struct {
+	FirstName       string `json:"firstName"`
+	LastName        string `json:"lastName"`
+	Designation     string `json:"designation"`
+	RoleTypeId      int    `json:"roleTypeId"`
+	RefUserStatus   bool   `json:"refUserStatus"`
+	RefUserBranchId int    `gorm:"column:refUserBranchId"`
+	Username        string `json:"username"`
+	Mobile          string `json:"mobile"`
+	Email           string `json:"email"`
+	DoorNumber      string `json:"doorNumber"`
+	StreetName      string `json:"streetName"`
+	City            string `json:"city"`
+	State           string `json:"state"`
+}

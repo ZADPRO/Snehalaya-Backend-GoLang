@@ -482,3 +482,76 @@ func DeleteBranchController() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch deleted", "token": token})
 	}
 }
+
+// ADD NEW EMPLOYEE CONTROLLER
+func GetEmployeeRoleType() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("Get Employee Role Type Controller ===> ")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found in request context."})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		roleTypes := settingsService.GetUserRoleTypeService(dbConn)
+
+		if roleTypes == nil || len(roleTypes) == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"status": false, "message": "No role types found"})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Role types fetched successfully",
+			"roles":   roleTypes,
+			"token":   token,
+		})
+	}
+}
+
+func CreateEmployeeController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("Create Employee Controller")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Missing context info"})
+			return
+		}
+
+		var payload model.EmployeePayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("Invalid JSON: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		err := settingsService.CreateEmployeeService(dbConn, &payload)
+		if err != nil {
+			log.Error("Service error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		log.Info("Employee created successfully")
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Employee created", "token": token})
+	}
+}

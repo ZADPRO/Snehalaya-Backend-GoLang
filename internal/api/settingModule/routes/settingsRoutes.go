@@ -27,4 +27,12 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route.GET("/branches", accesstoken.JWTMiddleware(), settingsController.GetAllBranchesController())
 	route.PUT("/branches", accesstoken.JWTMiddleware(), settingsController.UpdateBranchController())
 	route.DELETE("/branches/:id", accesstoken.JWTMiddleware(), settingsController.DeleteBranchController())
+
+	// EMPLOYEES ROUTES
+	route.GET("/employeeRoleType", accesstoken.JWTMiddleware(), settingsController.GetEmployeeRoleType())
+	route.POST("/employees", accesstoken.JWTMiddleware(), settingsController.CreateEmployeeController())
+	// route.GET("/employees", accesstoken.JWTMiddleware(), settingsController.GetAllEmployeesController())
+	// route.PUT("/employees", accesstoken.JWTMiddleware(), settingsController.UpdateEmployeeController())
+	// route.DELETE("/employees/:id", accesstoken.JWTMiddleware(), settingsController.DeleteEmployeeController())
+
 }

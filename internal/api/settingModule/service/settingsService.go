@@ -9,7 +9,6 @@ import (
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
-
 )
 
 // CATEGORIES SERVICE
@@ -99,7 +98,6 @@ func GetSubcategoriesByCategory(db *gorm.DB, categoryId string) ([]model.SubCate
 func DeleteCategoryService(db *gorm.DB, id string) error {
 	log := logger.InitLogger()
 	log.Info("Soft deleting category with ID: ", id)
-	
 
 	return db.Table("Categories").
 		Where(`"refCategoryid" = ?`, id).
@@ -281,4 +279,76 @@ func DeleteBranchService(db *gorm.DB, id string) error {
 			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
 			"updatedBy": "Admin",
 		}).Error
+}
+
+// EMPLOYEE - SELECT ROLE TYPE
+
+func GetUserRoleTypeService(db *gorm.DB) []model.RoleType {
+	log := logger.InitLogger()
+	var roleTypes []model.RoleType
+
+	err := db.Find(&roleTypes).Error
+	if err != nil {
+		log.Error("Error fetching role types: ", err)
+		return nil
+	}
+
+	return roleTypes
+}
+
+func CreateEmployeeService(db *gorm.DB, data *model.EmployeePayload) error {
+	txn := db.Begin()
+	if txn.Error != nil {
+		return txn.Error
+	}
+
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	createdBy := "Admin"
+
+	// 1. Insert into Users
+	user := model.User{
+		RefRTId:            data.RoleTypeId,
+		RefUserFName:       data.FirstName,
+		RefUserLName:       data.LastName,
+		RefUserDesignation: data.Designation,
+		RefUserStatus:      map[bool]string{true: "Active", false: "In Active"}[data.RefUserStatus],
+		RefUserBranchId:    data.RefUserBranchId,
+		CreatedAt:          timestamp,
+		CreatedBy:          createdBy,
+	}
+	if err := txn.Table("Users").Create(&user).Error; err != nil {
+		txn.Rollback()
+		return fmt.Errorf("failed to create user: %w", err)
+	}
+
+	// 2. Insert into AuthCred
+	auth := model.UserAuth{
+		RefUserId:      user.RefUserId,
+		RefUACUsername: data.Username,
+		CreatedAt:      timestamp,
+		CreatedBy:      createdBy,
+	}
+	if err := txn.Table("refUserAuthCred").Create(&auth).Error; err != nil {
+		txn.Rollback()
+		return fmt.Errorf("failed to create auth: %w", err)
+	}
+
+	// 3. Insert into CommunicationDetails
+	comm := model.UserCommunication{
+		RefUserId:    user.RefUserId,
+		RefUCDEmail:  data.Email,
+		RefUCDMobile: data.Mobile,
+		RefUCDDoorNo: data.DoorNumber,
+		RefUCDStreet: data.StreetName,
+		RefUCDCity:   data.City,
+		RefUCDState:  data.State,
+		CreatedAt:    timestamp,
+		CreatedBy:    createdBy,
+	}
+	if err := txn.Table("refUserCommunicationDetails").Create(&comm).Error; err != nil {
+		txn.Rollback()
+		return fmt.Errorf("failed to create communication: %w", err)
+	}
+
+	return txn.Commit().Error
 }
