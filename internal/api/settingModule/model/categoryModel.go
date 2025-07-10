@@ -53,6 +53,7 @@ func (RoleType) TableName() string {
 
 type User struct {
 	RefUserId          int    `gorm:"primaryKey;autoIncrement;column:refUserId"`
+	RefUserCustId      string `gorm:"column:refUserCustId"`
 	RefRTId            int    `gorm:"column:refRTId"`
 	RefUserFName       string `gorm:"column:refUserFName"`
 	RefUserLName       string `gorm:"column:refUserLName"`

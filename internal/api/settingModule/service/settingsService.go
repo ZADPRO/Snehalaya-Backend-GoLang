@@ -7,7 +7,9 @@ import (
 
 	transactionLogger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/helper/transactions/service"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/model"
+	becrypt "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Bcrypt"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
+	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
 )
 
@@ -305,9 +307,56 @@ func CreateEmployeeService(db *gorm.DB, data *model.EmployeePayload) error {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	createdBy := "Admin"
 
-	// 1. Insert into Users
+	// 🔍 Step 1: Duplicate check on username, email, or mobile
+	var existingCount int64
+	if err := txn.Table(`"refUserAuthCred"`).
+		Where(`"refUACUsername" = ?`, data.Username).
+		Or(`"refUserId" IN (
+		SELECT "refUserId" FROM "refUserCommunicationDetails"
+		WHERE "refUCDEmail" = ? OR "refUCDMobile" = ?
+	)`, data.Email, data.Mobile).
+		Count(&existingCount).Error; err != nil {
+		txn.Rollback()
+		return fmt.Errorf("error checking for duplicates: %w", err)
+	}
+
+	if existingCount > 0 {
+		txn.Rollback()
+		return fmt.Errorf("user with same username/email/mobile already exists")
+	}
+
+	// 🔤 Step 2: Generate refUserCustId
+	roleAbbreviations := map[int]string{
+		1:  "SUP", // Super Admin
+		2:  "ADM", // Admin
+		3:  "ACC", // Accounts Manager
+		4:  "STM", // Store Manager
+		5:  "PMN", // Purchase Manager
+		6:  "BEX", // Billing Executive
+		7:  "SAL", // Sales Executive
+		8:  "SEO", // SEO
+		9:  "CSP", // Customer Support
+		10: "SUP", // Supplier
+	}
+
+	abbr, ok := roleAbbreviations[data.RoleTypeId]
+	if !ok {
+		txn.Rollback()
+		return fmt.Errorf("invalid role type ID: %d", data.RoleTypeId)
+	}
+
+	var userCount int64
+	if err := txn.Table(`"Users"`).Where(`"refRTId" = ?`, data.RoleTypeId).Count(&userCount).Error; err != nil {
+		txn.Rollback()
+		return fmt.Errorf("error counting users for role: %w", err)
+	}
+
+	refUserCustId := fmt.Sprintf("Z%02d%s%04d", data.RoleTypeId, abbr, userCount+1)
+
+	// 👤 Step 3: Insert into Users table
 	user := model.User{
 		RefRTId:            data.RoleTypeId,
+		RefUserCustId:      refUserCustId,
 		RefUserFName:       data.FirstName,
 		RefUserLName:       data.LastName,
 		RefUserDesignation: data.Designation,
@@ -316,24 +365,40 @@ func CreateEmployeeService(db *gorm.DB, data *model.EmployeePayload) error {
 		CreatedAt:          timestamp,
 		CreatedBy:          createdBy,
 	}
-	if err := txn.Table("Users").Create(&user).Error; err != nil {
+	if err := txn.Table(`"Users"`).Create(&user).Error; err != nil {
 		txn.Rollback()
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// 2. Insert into AuthCred
-	auth := model.UserAuth{
-		RefUserId:      user.RefUserId,
-		RefUACUsername: data.Username,
-		CreatedAt:      timestamp,
-		CreatedBy:      createdBy,
+	// Step 3.5: Generate password and hash
+	if len(data.Username) < 4 || len(data.Mobile) < 4 {
+		txn.Rollback()
+		return fmt.Errorf("username or mobile too short to generate password")
 	}
-	if err := txn.Table("refUserAuthCred").Create(&auth).Error; err != nil {
+
+	password := data.Username[:4] + data.Mobile[len(data.Mobile)-4:]
+	hashedPassword, err := becrypt.HashPassword(password)
+	if err != nil {
+		txn.Rollback()
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+
+	// 🔐 Step 4: Insert into refUserAuthCred
+	auth := model.UserAuth{
+		RefUserId:            user.RefUserId,
+		RefUACUsername:       data.Username,
+		RefUACPassword:       password,       // store raw password if needed (not recommended in prod)
+		RefUACHashedPassword: hashedPassword, // actual used password
+		CreatedAt:            timestamp,
+		CreatedBy:            createdBy,
+	}
+
+	if err := txn.Table(`"refUserAuthCred"`).Create(&auth).Error; err != nil {
 		txn.Rollback()
 		return fmt.Errorf("failed to create auth: %w", err)
 	}
 
-	// 3. Insert into CommunicationDetails
+	// 📞 Step 5: Insert into refUserCommunicationDetails
 	comm := model.UserCommunication{
 		RefUserId:    user.RefUserId,
 		RefUCDEmail:  data.Email,
@@ -345,10 +410,40 @@ func CreateEmployeeService(db *gorm.DB, data *model.EmployeePayload) error {
 		CreatedAt:    timestamp,
 		CreatedBy:    createdBy,
 	}
-	if err := txn.Table("refUserCommunicationDetails").Create(&comm).Error; err != nil {
+	if err := txn.Table(`"refUserCommunicationDetails"`).Create(&comm).Error; err != nil {
 		txn.Rollback()
 		return fmt.Errorf("failed to create communication: %w", err)
 	}
 
+	emailBody := fmt.Sprintf(`
+	<div style="font-family: Arial, sans-serif; color: #333;">
+		<h2 style="color: #8B0000;">🎉 Welcome to Snehalayaa Silks Family! 🎉</h2>
+		<p>Dear <strong>%s %s</strong>,</p>
+		
+		<p>We are thrilled to welcome you onboard as a valued member of our ERP project at <strong>Snehalayaa Silks</strong>.</p>
+		
+		<p>Your presence marks the beginning of a new chapter in our journey towards excellence in textile innovation and digital transformation.</p>
+		
+		<h4 style="color: #8B0000;">🆔 Your Employee Credentials</h4>
+		<p><b>Employee ID:</b> %s</p>
+		<p><b>Username:</b> %s</p>
+		<p><b>Temporary Password:</b> %s</p>
+
+		<p style="margin-top: 20px;">Please log in to the system and update your password at the earliest for security purposes.</p>
+		
+		<hr style="margin: 30px 0;" />
+		<p style="font-style: italic;">Together, let's weave success into every thread of Snehalayaa Silks!</p>
+		
+		<p>Warm regards,</p>
+		<p><strong>HR Team</strong><br/>Snehalayaa Silks ERP Project</p>
+	</div>`,
+		data.FirstName, data.LastName, refUserCustId, data.Username, password,
+	)
+
+	if !mailService.MailService(data.Email, emailBody, "Your Account Credentials") {
+		txn.Rollback()
+		return fmt.Errorf("failed to send credentials email")
+	}
+	// ✅ Commit Transaction
 	return txn.Commit().Error
 }
