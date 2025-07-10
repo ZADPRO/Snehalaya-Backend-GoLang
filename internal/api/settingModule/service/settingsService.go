@@ -308,22 +308,22 @@ func CreateEmployeeService(db *gorm.DB, data *model.EmployeePayload) error {
 	createdBy := "Admin"
 
 	// 🔍 Step 1: Duplicate check on username, email, or mobile
-	var existingCount int64
-	if err := txn.Table(`"refUserAuthCred"`).
-		Where(`"refUACUsername" = ?`, data.Username).
-		Or(`"refUserId" IN (
-		SELECT "refUserId" FROM "refUserCommunicationDetails"
-		WHERE "refUCDEmail" = ? OR "refUCDMobile" = ?
-	)`, data.Email, data.Mobile).
-		Count(&existingCount).Error; err != nil {
-		txn.Rollback()
-		return fmt.Errorf("error checking for duplicates: %w", err)
-	}
+	// var existingCount int64
+	// if err := txn.Table(`"refUserAuthCred"`).
+	// 	Where(`"refUACUsername" = ?`, data.Username).
+	// 	Or(`"refUserId" IN (
+	// 	SELECT "refUserId" FROM "refUserCommunicationDetails"
+	// 	WHERE "refUCDEmail" = ? OR "refUCDMobile" = ?
+	// )`, data.Email, data.Mobile).
+	// 	Count(&existingCount).Error; err != nil {
+	// 	txn.Rollback()
+	// 	return fmt.Errorf("error checking for duplicates: %w", err)
+	// }
 
-	if existingCount > 0 {
-		txn.Rollback()
-		return fmt.Errorf("user with same username/email/mobile already exists")
-	}
+	// if existingCount > 0 {
+	// 	txn.Rollback()
+	// 	return fmt.Errorf("user with same username/email/mobile already exists")
+	// }
 
 	// 🔤 Step 2: Generate refUserCustId
 	roleAbbreviations := map[int]string{
@@ -416,29 +416,59 @@ func CreateEmployeeService(db *gorm.DB, data *model.EmployeePayload) error {
 	}
 
 	emailBody := fmt.Sprintf(`
-	<div style="font-family: Arial, sans-serif; color: #333;">
-		<h2 style="color: #8B0000;">🎉 Welcome to Snehalayaa Silks Family! 🎉</h2>
-		<p>Dear <strong>%s %s</strong>,</p>
-		
-		<p>We are thrilled to welcome you onboard as a valued member of our ERP project at <strong>Snehalayaa Silks</strong>.</p>
-		
-		<p>Your presence marks the beginning of a new chapter in our journey towards excellence in textile innovation and digital transformation.</p>
-		
-		<h4 style="color: #8B0000;">🆔 Your Employee Credentials</h4>
-		<p><b>Employee ID:</b> %s</p>
-		<p><b>Username:</b> %s</p>
-		<p><b>Temporary Password:</b> %s</p>
+		<table width="100%%" cellspacing="0" cellpadding="0" style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 5px;">
+			<tr>
+				<td align="center">
+					<table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+						<tr>
+							<td style="background-color: #8B0000; padding: 20px; text-align: center; color: white;">
+								<h2 style="margin: 0;">🎉 Welcome to Snehalayaa Silks Family! 🎉</h2>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding: 30px; color: #333;">
+								<p>Dear <strong>%s %s</strong>,</p>
 
-		<p style="margin-top: 20px;">Please log in to the system and update your password at the earliest for security purposes.</p>
-		
-		<hr style="margin: 30px 0;" />
-		<p style="font-style: italic;">Together, let's weave success into every thread of Snehalayaa Silks!</p>
-		
-		<p>Warm regards,</p>
-		<p><strong>HR Team</strong><br/>Snehalayaa Silks ERP Project</p>
-	</div>`,
-		data.FirstName, data.LastName, refUserCustId, data.Username, password,
-	)
+								<p>We are thrilled to welcome you onboard as a valued member of our ERP project at <strong>Snehalayaa Silks</strong>.</p>
+
+								<p>Your presence marks the beginning of a new chapter in our journey towards excellence in textile innovation and digital transformation.</p>
+
+								<h3 style="color: #8B0000; border-bottom: 1px solid #ccc; padding-bottom: 5px; text-align: center;">Your Employee Credentials</h3>
+								<table width="80%%" cellpadding="10" cellspacing="0" style="border-collapse: collapse; margin: 10px auto;">
+									<tr style="background-color: #f2f2f2;">
+										<td width="40%%" style="border: 1px solid #ddd;"><strong>Employee ID</strong></td>
+										<td style="border: 1px solid #ddd;">%s</td>
+									</tr>
+									<tr>
+										<td style="border: 1px solid #ddd;"><strong>Username</strong></td>
+										<td style="border: 1px solid #ddd;">%s</td>
+									</tr>
+									<tr style="background-color: #f2f2f2;">
+										<td style="border: 1px solid #ddd;"><strong>Temporary Password</strong></td>
+										<td style="border: 1px solid #ddd;">%s</td>
+									</tr>
+								</table>
+
+								<p style="margin-top: 20px;">Please log in to the system and update your password at the earliest for security purposes.</p>
+
+								<hr style="margin: 30px 0; border: none; border-top: 1px solid #ccc;" />
+
+								<p style="font-style: italic; color: #555;">Together, let's weave success into every thread of Snehalayaa Silks!</p>
+
+								<p style="margin-top: 30px;">Warm regards,</p>
+								<p><strong>HR Team</strong><br/>Snehalayaa Silks ERP Project</p>
+							</td>
+						</tr>
+						<tr>
+							<td style="background-color: #f2f2f2; text-align: center; padding: 15px; font-size: 12px; color: #999;">
+								© 2025 Snehalayaa Silks. All rights reserved.
+							</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+		`, data.FirstName, data.LastName, refUserCustId, data.Username, password)
 
 	if !mailService.MailService(data.Email, emailBody, "Your Account Credentials") {
 		txn.Rollback()
