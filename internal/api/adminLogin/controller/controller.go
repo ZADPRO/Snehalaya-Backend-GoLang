@@ -73,7 +73,7 @@ func ForgotPasswordController() gin.HandlerFunc {
 		err := dbConn.Raw(`SELECT u."refUserId", u."refUserStatus", ucd."refUCDEmail"
 				FROM "Users" u
 				JOIN "refUserCommunicationDetails" ucd ON u."refUserId" = ucd."refUserId"
-				WHERE ucd."refUCDEmail" = ? AND u."refUserStatus" = 'true'
+				WHERE ucd."refUCDEmail" = ? AND u."refUserStatus" = 'Active'
 				LIMIT 1;
 				`, req.Email).
 			Scan(&user).Error

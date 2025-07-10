@@ -21,7 +21,7 @@ type AdminLoginModelReq struct {
 	RoleTypeId        string `json:"refRTId" gorm:"column:refRTId"`
 	UserFName         string `json:"refUserFName" gorm:"column:refUserFName"`
 	UserLName         string `json:"refUserLName" gorm:"column:refUserLName"`
-	UserStatus        bool   `json:"refUserStatus" gorm:"column:refUserStatus"`
+	UserStatus        string `json:"refUserStatus" gorm:"column:refUserStatus"`
 	UserBranchId      int    `json:"refUserBranchId" gorm:"refUserBranchId"`
 	UACUsername       string `json:"refUACUsername" gorm:"column:refUACUsername"`
 	UCDMobile         string `json:"refUCDMobile" gorm:"column:refUCDMobile"`

@@ -4,6 +4,7 @@ import (
 	settingsController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
+
 )
 
 func SettingsAdminRoutes(router *gin.Engine) {
@@ -30,8 +31,9 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	// EMPLOYEES ROUTES
 	route.GET("/employeeRoleType", accesstoken.JWTMiddleware(), settingsController.GetEmployeeRoleType())
 	route.POST("/employees", accesstoken.JWTMiddleware(), settingsController.CreateEmployeeController())
-	// route.GET("/employees", accesstoken.JWTMiddleware(), settingsController.GetAllEmployeesController())
-	// route.PUT("/employees", accesstoken.JWTMiddleware(), settingsController.UpdateEmployeeController())
-	// route.DELETE("/employees/:id", accesstoken.JWTMiddleware(), settingsController.DeleteEmployeeController())
+	route.GET("/employees", accesstoken.JWTMiddleware(), settingsController.GetAllEmployeesController())
+	route.GET("/employees/:id", accesstoken.JWTMiddleware(), settingsController.GetEmployeeByIDController())
+	route.PUT("/employees/:id", accesstoken.JWTMiddleware(), settingsController.UpdateEmployeeController())
+	route.DELETE("/employees/:id", accesstoken.JWTMiddleware(), settingsController.DeleteEmployeeController())
 
 }

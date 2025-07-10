@@ -555,3 +555,76 @@ func CreateEmployeeController() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Employee created", "token": token})
 	}
 }
+
+func GetAllEmployeesController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		employees, err := settingsService.GetAllEmployeesService(dbConn)
+		if err != nil {
+			log.Error("Failed to fetch employees: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": employees})
+	}
+}
+
+func GetEmployeeByIDController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		id := c.Param("id")
+		employee, err := settingsService.GetEmployeeByIDService(dbConn, id)
+		if err != nil {
+			log.Error("Failed to fetch employee: " + err.Error())
+			c.JSON(http.StatusNotFound, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": employee})
+	}
+}
+
+func UpdateEmployeeController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		id := c.Param("id")
+		var payload model.EmployeePayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		err := settingsService.UpdateEmployeeService(dbConn, id, &payload)
+		if err != nil {
+			log.Error("Failed to update employee: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Employee updated successfully"})
+	}
+}
+
+func DeleteEmployeeController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		id := c.Param("id")
+		err := settingsService.SoftDeleteEmployeeService(dbConn, id)
+		if err != nil {
+			log.Error("Failed to delete employee: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Employee deleted (soft) successfully"})
+	}
+}

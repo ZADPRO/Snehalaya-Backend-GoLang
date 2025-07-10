@@ -20,5 +20,5 @@ FROM
   JOIN public."refUserCommunicationDetails" ucd ON u."refUserId" = ucd."refUserId"
 WHERE
   ucd."refUCDMobile" = $1
-  AND u."refUserStatus" = 'true';
+  AND u."refUserStatus" = 'Active';
 `

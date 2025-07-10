@@ -109,3 +109,14 @@ type EmployeePayload struct {
 	City            string `json:"city"`
 	State           string `json:"state"`
 }
+
+type EmployeeResponse struct {
+	User
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Mobile   string `json:"mobile"`
+	DoorNo   string `json:"doorNumber"`
+	Street   string `json:"streetName"`
+	City     string `json:"city"`
+	State    string `json:"state"`
+}

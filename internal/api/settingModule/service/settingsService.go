@@ -308,22 +308,22 @@ func CreateEmployeeService(db *gorm.DB, data *model.EmployeePayload) error {
 	createdBy := "Admin"
 
 	// 🔍 Step 1: Duplicate check on username, email, or mobile
-	// var existingCount int64
-	// if err := txn.Table(`"refUserAuthCred"`).
-	// 	Where(`"refUACUsername" = ?`, data.Username).
-	// 	Or(`"refUserId" IN (
-	// 	SELECT "refUserId" FROM "refUserCommunicationDetails"
-	// 	WHERE "refUCDEmail" = ? OR "refUCDMobile" = ?
-	// )`, data.Email, data.Mobile).
-	// 	Count(&existingCount).Error; err != nil {
-	// 	txn.Rollback()
-	// 	return fmt.Errorf("error checking for duplicates: %w", err)
-	// }
+	var existingCount int64
+	if err := txn.Table(`"refUserAuthCred"`).
+		Where(`"refUACUsername" = ?`, data.Username).
+		Or(`"refUserId" IN (
+		SELECT "refUserId" FROM "refUserCommunicationDetails"
+		WHERE "refUCDEmail" = ? OR "refUCDMobile" = ?
+	)`, data.Email, data.Mobile).
+		Count(&existingCount).Error; err != nil {
+		txn.Rollback()
+		return fmt.Errorf("error checking for duplicates: %w", err)
+	}
 
-	// if existingCount > 0 {
-	// 	txn.Rollback()
-	// 	return fmt.Errorf("user with same username/email/mobile already exists")
-	// }
+	if existingCount > 0 {
+		txn.Rollback()
+		return fmt.Errorf("user with same username/email/mobile already exists")
+	}
 
 	// 🔤 Step 2: Generate refUserCustId
 	roleAbbreviations := map[int]string{
@@ -476,4 +476,94 @@ func CreateEmployeeService(db *gorm.DB, data *model.EmployeePayload) error {
 	}
 	// ✅ Commit Transaction
 	return txn.Commit().Error
+}
+
+func GetAllEmployeesService(db *gorm.DB) ([]model.User, error) {
+	var users []model.User
+	if err := db.Where(`"isDelete" = ?`, false).Find(&users).Error; err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+func GetEmployeeByIDService(db *gorm.DB, id string) (*model.EmployeeResponse, error) {
+	var user model.User
+	if err := db.Table("Users").
+		Where(`"refUserId" = ? AND "isDelete" = ?`, id, false).
+		First(&user).Error; err != nil {
+		return nil, fmt.Errorf("user not found")
+	}
+
+	var comm model.UserCommunication
+	if err := db.Table(`"refUserCommunicationDetails"`).
+		Where(`"refUserId" = ?`, id).
+		First(&comm).Error; err != nil {
+		return nil, fmt.Errorf("communication details not found")
+	}
+
+	var auth model.UserAuth
+	if err := db.Table(`"refUserAuthCred"`).
+		Where(`"refUserId" = ?`, id).
+		First(&auth).Error; err != nil {
+		return nil, fmt.Errorf("auth details not found")
+	}
+
+	response := &model.EmployeeResponse{
+		User:     user,
+		Username: auth.RefUACUsername,
+		Email:    comm.RefUCDEmail,
+		Mobile:   comm.RefUCDMobile,
+		DoorNo:   comm.RefUCDDoorNo,
+		Street:   comm.RefUCDStreet,
+		City:     comm.RefUCDCity,
+		State:    comm.RefUCDState,
+	}
+
+	return response, nil
+}
+
+func UpdateEmployeeService(db *gorm.DB, id string, data *model.EmployeePayload) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Where(`"refUserId" = ? AND "isDelete" = ?`, id, false).First(&user).Error; err != nil {
+			return fmt.Errorf("employee not found")
+		}
+
+		user.RefUserFName = data.FirstName
+		user.RefUserLName = data.LastName
+		user.RefUserDesignation = data.Designation
+		user.RefRTId = data.RoleTypeId
+		user.RefUserStatus = map[bool]string{true: "Active", false: "In Active"}[data.RefUserStatus]
+		user.RefUserBranchId = data.RefUserBranchId
+		user.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
+		user.UpdatedBy = "Admin"
+
+		if err := tx.Save(&user).Error; err != nil {
+			return err
+		}
+
+		// Also update communication
+		if err := tx.Model(&model.UserCommunication{}).
+			Where(`"refUserId" = ?`, id).
+			Updates(map[string]interface{}{
+				"refUCDEmail":  data.Email,
+				"refUCDMobile": data.Mobile,
+				"refUCDDoorNo": data.DoorNumber,
+				"refUCDStreet": data.StreetName,
+				"refUCDCity":   data.City,
+				"refUCDState":  data.State,
+				"updatedAt":    time.Now().Format("2006-01-02 15:04:05"),
+				"updatedBy":    "Admin",
+			}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+func SoftDeleteEmployeeService(db *gorm.DB, id string) error {
+	return db.Model(&model.User{}).
+		Where(`"refUserId" = ?`, id).
+		Update(`"isDelete"`, true).Error
 }
