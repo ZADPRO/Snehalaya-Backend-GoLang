@@ -19,22 +19,22 @@ type BranchDetails struct {
 }
 
 type ProductDetails struct {
-	ProductName      string `json:"productName"`
-	RefCategoryID    int    `json:"refCategoryid"`
-	RefSubCategoryID int    `json:"refSubCategoryId"`
-	HSNCode          string `json:"HSNCode"`
-	PurchaseQuantity string `json:"purchaseQuantity"`
-	PurchasePrice    string `json:"purchasePrice"`
-	DiscountPrice    string `json:"discountPrice"`
-	DiscountAmount   string `json:"discountAmount"`
-	TotalAmount      string `json:"totalAmount"`
-	IsReceived       bool   `json:"isReceived"`
-	AcceptanceStatus string `json:"acceptanceStatus"`
-	CreatedAt        string `json:"createdAt"`
-	CreatedBy        string `json:"createdBy"`
-	UpdatedAt        string `json:"updatedAt"`
-	UpdatedBy        string `json:"updatedBy"`
-	IsDelete         bool   `json:"isDelete"`
+	ProductName      string `gorm:"column:productName" json:"productName"`
+	RefCategoryID    int    `gorm:"column:refCategoryid" json:"refCategoryid"`
+	RefSubCategoryID int    `gorm:"column:refSubCategoryId" json:"refSubCategoryId"`
+	HSNCode          string `gorm:"column:HSNCode" json:"HSNCode"`
+	PurchaseQuantity string `gorm:"column:purchaseQuantity" json:"purchaseQuantity"`
+	PurchasePrice    string `gorm:"column:purchasePrice" json:"purchasePrice"`
+	DiscountPrice    string `gorm:"column:discountPrice" json:"discountPrice"`
+	DiscountAmount   string `gorm:"column:discountAmount" json:"discountAmount"`
+	TotalAmount      string `gorm:"column:totalAmount" json:"totalAmount"`
+	IsReceived       bool   `gorm:"column:isReceived" json:"isReceived"`
+	AcceptanceStatus string `gorm:"column:acceptanceStatus" json:"acceptanceStatus"`
+	CreatedAt        string `gorm:"column:createdAt" json:"createdAt"`
+	CreatedBy        string `gorm:"column:createdBy" json:"createdBy"`
+	UpdatedAt        string `gorm:"column:updatedAt" json:"updatedAt"`
+	UpdatedBy        string `gorm:"column:updatedBy" json:"updatedBy"`
+	IsDelete         bool   `gorm:"column:isDelete" json:"isDelete"`
 }
 
 type TotalSummary struct {

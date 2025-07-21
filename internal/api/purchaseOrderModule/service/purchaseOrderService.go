@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	purchaseOrderModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/model"
+	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
-
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, payload *purchaseOrderModel.CreatePORequest, createdBy string) error {
@@ -70,45 +70,158 @@ func CreatePurchaseOrderService(db *gorm.DB, payload *purchaseOrderModel.CreateP
 // purchaseOrderService/purchaseOrderService.go
 
 func GetAllPurchaseOrdersService(db *gorm.DB) ([]purchaseOrderModel.CreatePORequest, error) {
+	log := logger.InitLogger()
+
+	log.Println("INFO: GetAllPurchaseOrdersService started")
 	var orders []purchaseOrderModel.CreatePORequest
 
 	type OrderRow struct {
-		PurchaseOrderID int `gorm:"column:purchaseOrderId"`
-		purchaseOrderModel.TotalSummary
-		purchaseOrderModel.SupplierDetails
-		purchaseOrderModel.BranchDetails
+		PurchaseOrderID int    `gorm:"column:purchaseOrderId"`
+		PONumber        string `gorm:"column:poNumber"`
+		SupplierID      int    `gorm:"column:supplierId"`
+		BranchID        int    `gorm:"column:branchId"`
+		Status          int    `gorm:"column:status"`
+		ExpectedDate    string `gorm:"column:expectedDate"`
+		ModeOfTransport string `gorm:"column:modeOfTransport"`
+		SubTotal        string `gorm:"column:subTotal"`
+		DiscountOverall string `gorm:"column:discountOverall"`
+		PayAmount       string `gorm:"column:payAmount"`
+		IsTaxApplied    bool   `gorm:"column:isTaxApplied"`
+		TaxPercentage   string `gorm:"column:taxPercentage"`
+		TaxedAmount     string `gorm:"column:taxedAmount"`
+		TotalAmount     string `gorm:"column:totalAmount"`
+		TotalPaid       string `gorm:"column:totalPaid"`
+		PaymentPending  string `gorm:"column:paymentPending"`
+		CreatedAt       string `gorm:"column:createdAt"`
+		CreatedBy       string `gorm:"column:createdBy"`
+		UpdatedAt       string `gorm:"column:updatedAt"`
+		UpdatedBy       string `gorm:"column:updatedBy"`
+		IsDelete        bool   `gorm:"column:isDelete"`
+
+		// Supplier
+		SupplierName          string `gorm:"column:supplierName"`
+		SupplierCompanyName   string `gorm:"column:supplierCompanyName"`
+		SupplierGSTNumber     string `gorm:"column:supplierGSTNumber"`
+		SupplierEmail         string `gorm:"column:supplierEmail"`
+		SupplierContactNumber string `gorm:"column:supplierContactNumber"`
+		SupplierPaymentTerms  string `gorm:"column:supplierPaymentTerms"`
+		SupplierAddress       string `gorm:"column:supplierAddress"`
+
+		// Branch
+		BranchName    string `gorm:"column:branchName"`
+		BranchEmail   string `gorm:"column:branchEmail"`
+		BranchAddress string `gorm:"column:branchAddress"`
 	}
 
 	var orderRows []OrderRow
-	if err := db.Table(`"purchaseOrder"."CreatePurchaseOrder" AS po`).
-		Select(`po."purchaseOrderId", po.*, 
-		s."supplierName", s."supplierCompanyName", s."supplierGSTNumber", s."supplierEmail", s."supplierContactNumber",
-		s."supplierDoorNumber" || ', ' || s."supplierStreet" || ', ' || s."supplierCity" || ', ' || s."supplierState" || ', ' || s."supplierCountry" || ', PIN: ' || s."supplierPaymentTerms" AS supplierAddress,
-		s."supplierPaymentTerms",
-		b."refBranchName" AS branchName, b."refEmail" AS branchEmail, b."refLocation" AS branchAddress`).
-		Joins(`LEFT JOIN "public"."Supplier" s ON po."supplierId" = s."supplierId"`).
-		Joins(`LEFT JOIN "public"."Branches" b ON po."branchId" = b."refBranchId"`).
-		Where(`po."isDelete" = 'false'`).
-		Scan(&orderRows).Error; err != nil {
+
+	query := `
+		SELECT
+			po."purchaseOrderId",
+			po."poNumber", po."supplierId", po."branchId", po."status",
+			po."expectedDate", po."modeOfTransport", po."subTotal", po."discountOverall", po."payAmount",
+			po."isTaxApplied", po."taxPercentage", po."taxedAmount", po."totalAmount",
+			po."totalPaid", po."paymentPending",
+			po."createdAt", po."createdBy", po."updatedAt", po."updatedBy", po."isDelete",
+
+			s."supplierId" AS "supplierId",
+			s."supplierName", s."supplierCompanyName", s."supplierGSTNumber",
+			s."supplierEmail", s."supplierContactNumber",
+			s."supplierPaymentTerms",
+			CONCAT_WS(', ',
+				s."supplierDoorNumber",
+				s."supplierStreet",
+				s."supplierCity",
+				s."supplierState",
+				s."supplierCountry"
+			) AS "supplierAddress",
+
+			b."refBranchId" AS "branchId",
+			b."refBranchName" AS "branchName",
+			b."refEmail" AS "branchEmail",
+			b."refLocation" AS "branchAddress"
+
+		FROM "purchaseOrder"."CreatePurchaseOrder" po
+		LEFT JOIN "public"."Supplier" s ON po."supplierId" = s."supplierId" AND s."isDelete" = false
+		LEFT JOIN "public"."Branches" b ON po."branchId" = b."refBranchId" AND b."isDelete" = false
+		WHERE po."isDelete" = 'false';
+	`
+
+	if err := db.Raw(query).Scan(&orderRows).Error; err != nil {
+		log.Println("ERROR: Failed to fetch purchase orders:", err)
 		return nil, err
 	}
 
+	log.Println("\n\nINFO: Purchase order rows fetched successfully")
+	fmt.Printf("DEBUG: orderRows = %+v\n", orderRows)
+
 	for _, row := range orderRows {
 		var products []purchaseOrderModel.ProductDetails
-		if err := db.Table(`"purchaseOrder"."PurchaseOrderItemsInitial"`).
-			Where(`"purchaseOrderId" = ? AND "isDelete" = ?`, row.PurchaseOrderID, false).
-			Find(&products).Error; err != nil {
+
+		if err := db.Raw(`
+			SELECT *
+			FROM "purchaseOrder"."PurchaseOrderItemsInitial"
+			WHERE "purchaseOrderId" = ? AND "isDelete" = false
+		`, row.PurchaseOrderID).Scan(&products).Error; err != nil {
+			log.Info("\n\nERROR: Failed to fetch products for PurchaseOrderID =", row.PurchaseOrderID, ":", err)
 			return nil, err
 		}
 
+		log.Printf("\n\nINFO: Fetched %d products for PurchaseOrderID = %d\n", len(products), row.PurchaseOrderID)
+		fmt.Printf("DEBUG: products for PurchaseOrderID %d = %+v\n", row.PurchaseOrderID, products)
+
 		order := purchaseOrderModel.CreatePORequest{
-			SupplierDetails: row.SupplierDetails,
-			BranchDetails:   row.BranchDetails,
-			ProductDetails:  products,
-			TotalSummary:    row.TotalSummary,
+			SupplierDetails: purchaseOrderModel.SupplierDetails{
+				SupplierID:            row.SupplierID,
+				SupplierName:          row.SupplierName,
+				SupplierCompanyName:   row.SupplierCompanyName,
+				SupplierGSTNumber:     row.SupplierGSTNumber,
+				SupplierAddress:       row.SupplierAddress,
+				SupplierPaymentTerms:  row.SupplierPaymentTerms,
+				SupplierEmail:         row.SupplierEmail,
+				SupplierContactNumber: row.SupplierContactNumber,
+			},
+			BranchDetails: purchaseOrderModel.BranchDetails{
+				BranchID:      row.BranchID,
+				BranchName:    row.BranchName,
+				BranchEmail:   row.BranchEmail,
+				BranchAddress: row.BranchAddress,
+			},
+			TotalSummary: purchaseOrderModel.TotalSummary{
+				PONumber:        row.PONumber,
+				SupplierID:      row.SupplierID,
+				BranchID:        row.BranchID,
+				Status:          row.Status,
+				ExpectedDate:    row.ExpectedDate,
+				ModeOfTransport: row.ModeOfTransport,
+				SubTotal:        row.SubTotal,
+				DiscountOverall: row.DiscountOverall,
+				PayAmount:       row.PayAmount,
+				IsTaxApplied:    row.IsTaxApplied,
+				TaxPercentage:   row.TaxPercentage,
+				TaxedAmount:     row.TaxedAmount,
+				TotalAmount:     row.TotalAmount,
+				TotalPaid:       row.TotalPaid,
+				PaymentPending:  row.PaymentPending,
+				CreatedAt:       row.CreatedAt,
+				CreatedBy:       row.CreatedBy,
+				UpdatedAt:       row.UpdatedAt,
+				UpdatedBy:       row.UpdatedBy,
+				IsDelete:        row.IsDelete,
+			},
+			ProductDetails: products,
 		}
+
+		log.Printf("DEBUG: First row sample: %+v\n", orderRows[0])
+
 		orders = append(orders, order)
+
+		log.Info("\n\nINFO: Appended order for PurchaseOrderID = %d\n", row.PurchaseOrderID)
+		fmt.Printf("DEBUG: order = %+v\n", order)
 	}
+
+	log.Println("INFO: GetAllPurchaseOrdersService completed successfully")
+	fmt.Printf("DEBUG: Final orders list = %+v\n", orders)
 
 	return orders, nil
 }
