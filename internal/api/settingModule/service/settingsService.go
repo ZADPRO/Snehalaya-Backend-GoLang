@@ -20,6 +20,9 @@ func CreateCategoryService(db *gorm.DB, category *model.Category) error {
 
 	// Check for existing category with same name or code and isDelete = false
 	var existing model.Category
+
+	fmt.Println("category", category)
+
 	err := db.Table("Categories").
 		Where(`("categoryName" = ? OR "categoryCode" = ?) AND "isDelete" = ?`, category.CategoryName, category.CategoryCode, false).
 		First(&existing).Error

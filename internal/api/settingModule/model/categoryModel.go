@@ -10,6 +10,7 @@ type Category struct {
 	CreatedBy     string `json:"createdBy" gorm:"column:createdBy"`
 	UpdatedAt     string `json:"updatedAt" gorm:"column:updatedAt"`
 	UpdatedBy     string `json:"updatedBy" gorm:"column:updatedBy"`
+	ProfitMargin  string `json:"profitMargin" gorm:"column:profitMargin"`
 }
 
 type SubCategory struct {
