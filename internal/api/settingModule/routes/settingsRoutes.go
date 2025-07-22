@@ -28,6 +28,11 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route.PUT("/branches", accesstoken.JWTMiddleware(), settingsController.UpdateBranchController())
 	route.DELETE("/branches/:id", accesstoken.JWTMiddleware(), settingsController.DeleteBranchController())
 
+	// USER ROLES
+
+	// ATTRIBUTES
+	// route.POST("/attributes", accesstoken.JWTMiddleware(), settingsController.CreateAttributeGroupController())
+
 	// EMPLOYEES ROUTES
 	route.GET("/employeeRoleType", accesstoken.JWTMiddleware(), settingsController.GetEmployeeRoleType())
 	route.POST("/employees", accesstoken.JWTMiddleware(), settingsController.CreateEmployeeController())

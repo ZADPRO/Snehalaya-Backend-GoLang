@@ -9,6 +9,7 @@ import (
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
+
 )
 
 // CATEGORIES CONTROLLER
@@ -482,6 +483,11 @@ func DeleteBranchController() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch deleted", "token": token})
 	}
 }
+
+// ATTRIBUTES
+// func CreateAttributeGroupController() gin.HandlerFunc {
+
+// }
 
 // ADD NEW EMPLOYEE CONTROLLER
 func GetEmployeeRoleType() gin.HandlerFunc {
