@@ -65,6 +65,7 @@ type CreatePORequest struct {
 	BranchDetails   BranchDetails    `json:"branchDetails"`
 	ProductDetails  []ProductDetails `json:"productDetails"`
 	TotalSummary    TotalSummary     `json:"totalSummary"`
+	PurchaseOrderID int              `json:"purchaseOrderId"`
 }
 
 type CreatePurchaseOrder struct {
@@ -156,4 +157,53 @@ type OrderRow struct {
 	BranchName    string `gorm:"column:branchName"`
 	BranchEmail   string `gorm:"column:branchEmail"`
 	BranchAddress string `gorm:"column:branchAddress"`
+}
+
+type ProductsDummyAcceptance struct {
+	DummyProductsID  int    `gorm:"column:dummyProductsId;primaryKey;autoIncrement"`
+	PurchaseOrderID  int    `gorm:"column:purchaseOrderId"`
+	ProductName      string `gorm:"column:productName"`
+	RefCategoryID    int    `gorm:"column:refCategoryId"`
+	RefSubCategoryID int    `gorm:"column:refSubCategoryId"`
+	HSNCode          string `gorm:"column:HSNCode"`
+	DummySKU         string `gorm:"column:dummySKU"`
+	Price            string `gorm:"column:price"`
+	DiscountPercent  string `gorm:"column:discountPercentage"`
+	DiscountAmount   string `gorm:"column:discountAmount"`
+	IsReceived       string `gorm:"column:isReceived"`
+	AcceptanceStatus string `gorm:"column:acceptanceStatus"`
+	CreatedAt        string `gorm:"column:createdAt"`
+	CreatedBy        string `gorm:"column:createdBy"`
+	UpdatedAt        string `gorm:"column:updatedAt"`
+	UpdatedBy        string `gorm:"column:updatedBy"`
+	IsDelete         string `gorm:"column:isDelete"`
+}
+
+func (ProductsDummyAcceptance) TableName() string {
+	return `"purchaseOrder"."ProductsDummyAcceptance"`
+}
+
+type Product struct {
+	ProductID           int    `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
+	Name                string `gorm:"column:name" json:"name"`
+	SKU                 string `gorm:"column:sku" json:"sku"`
+	GTIN                string `gorm:"column:gtin" json:"gtin"`
+	CategoryID          int    `gorm:"column:category_id" json:"category"`
+	SubCategoryID       int    `gorm:"column:subcategory_id" json:"subcategory"`
+	Description         string `gorm:"column:description" json:"description"`
+	DetailedDescription string `gorm:"column:detailed_description" json:"detailedDescription"`
+	Price               string `gorm:"column:price" json:"price"`
+	MRP                 string `gorm:"column:mrp" json:"mrp"`
+	Cost                string `gorm:"column:cost" json:"cost"`
+	SplPrice            string `gorm:"column:spl_price" json:"splPrice"`
+	StartDate           string `gorm:"column:start_date" json:"startDate"`
+	EndDate             string `gorm:"column:end_date" json:"endDate"`
+	TaxClass            string `gorm:"column:tax_class" json:"taxClass"`
+	ProductImage        string `gorm:"column:product_image" json:"productImage"`
+	Featured            bool   `gorm:"column:featured" json:"featured"`
+	CreatedAt           string `gorm:"column:createdAt" json:"createdAt"`
+	CreatedBy           string `gorm:"column:createdBy" json:"createdBy"`
+	UpdatedAt           string `gorm:"column:updatedAt" json:"updatedAt"`
+	UpdatedBy           string `gorm:"column:updatedBy" json:"updatedBy"`
+	IsDelete            string `gorm:"column:isDelete" json:"isDelete"`
 }
