@@ -109,6 +109,7 @@ type UserCommunication struct {
 }
 
 type EmployeePayload struct {
+	RefUserId       int    `json:"refUserId"`
 	FirstName       string `json:"firstName"`
 	LastName        string `json:"lastName"`
 	Designation     string `json:"designation"`
