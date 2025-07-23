@@ -11,6 +11,7 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
+
 )
 
 // CATEGORIES SERVICE
@@ -136,13 +137,30 @@ func CreateSubCategoryService(db *gorm.DB, sub *model.SubCategory) error {
 	return db.Table("SubCategories").Create(sub).Error
 }
 
-func GetAllSubCategoriesService(db *gorm.DB) []model.SubCategory {
+func GetAllSubCategoriesService(db *gorm.DB) []model.SubCategoryResponse {
 	log := logger.InitLogger()
-	var subs []model.SubCategory
+	var subs []model.SubCategoryResponse
 
-	err := db.Table("SubCategories").Where(`"isDelete" = false`).Find(&subs).Error
+	err := db.Table(`"SubCategories" AS sub`).
+		Select(`sub."refSubCategoryId" AS "refSubCategoryId",
+	        sub."subCategoryName" AS "subCategoryName",
+	        sub."refCategoryId" AS "refCategoryId",
+	        cat."categoryName" AS "categoryName",
+	        sub."subCategoryCode" AS "subCategoryCode",
+	        sub."isActive" AS "isActive",
+	        sub."createdAt" AS "createdAt",
+	        sub."createdBy" AS "createdBy",
+	        sub."updatedAt" AS "updatedAt",
+	        sub."updatedBY" AS "updatedBY"`).
+		Joins(`JOIN "Categories" AS cat ON sub."refCategoryId" = cat."refCategoryid"`).
+		Where(`sub."isDelete" = false AND cat."isDelete" = false`).
+		Order(`sub."refSubCategoryId" ASC`).
+		Scan(&subs).Error
+
+	fmt.Printf("Result: %+v\n", subs)
+
 	if err != nil {
-		log.Error("Failed to fetch subcategories: " + err.Error())
+		log.Error("Failed to fetch subcategories with category names: " + err.Error())
 	}
 	return subs
 }
@@ -481,48 +499,58 @@ func CreateEmployeeService(db *gorm.DB, data *model.EmployeePayload) error {
 	return txn.Commit().Error
 }
 
-func GetAllEmployeesService(db *gorm.DB) ([]model.User, error) {
-	var users []model.User
-	if err := db.Where(`"isDelete" = ?`, false).Find(&users).Error; err != nil {
-		return nil, err
+func GetAllEmployeesService(db *gorm.DB) ([]model.EmployeeResponse, error) {
+	var employees []model.EmployeeResponse
+
+	query := `
+		SELECT 
+			u.*, 
+			a."refUACUsername" AS username, 
+			c."refUCDEmail" AS email, 
+			c."refUCDMobile" AS mobile,
+			c."refUCDDoorNo" AS doorNo, 
+			c."refUCDStreet" AS street,
+			c."refUCDCity" AS city,
+			c."refUCDState" AS state
+		FROM "Users" u
+		LEFT JOIN "refUserAuthCred" a ON u."refUserId" = a."refUserId"
+		LEFT JOIN "refUserCommunicationDetails" c ON u."refUserId" = c."refUserId"
+		WHERE u."isDelete" = false
+		ORDER BY u."refUserId" DESC;
+	`
+
+	if err := db.Raw(query).Scan(&employees).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch employees: %w", err)
 	}
-	return users, nil
+
+	return employees, nil
 }
 
 func GetEmployeeByIDService(db *gorm.DB, id string) (*model.EmployeeResponse, error) {
-	var user model.User
-	if err := db.Table("Users").
-		Where(`"refUserId" = ? AND "isDelete" = ?`, id, false).
-		First(&user).Error; err != nil {
-		return nil, fmt.Errorf("user not found")
+	var employee model.EmployeeResponse
+
+	query := `
+		SELECT 
+			u.*, 
+			a."refUACUsername" AS username, 
+			c."refUCDEmail" AS email, 
+			c."refUCDMobile" AS mobile,
+			c."refUCDDoorNo" AS doorNo, 
+			c."refUCDStreet" AS street,
+			c."refUCDCity" AS city,
+			c."refUCDState" AS state
+		FROM "Users" u
+		LEFT JOIN "refUserAuthCred" a ON u."refUserId" = a."refUserId"
+		LEFT JOIN "refUserCommunicationDetails" c ON u."refUserId" = c."refUserId"
+		WHERE u."isDelete" = false AND u."refUserId" = ?
+		ORDER BY u."refUserId" ASC;
+	`
+
+	if err := db.Raw(query, id).Scan(&employee).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch employee: %w", err)
 	}
 
-	var comm model.UserCommunication
-	if err := db.Table(`"refUserCommunicationDetails"`).
-		Where(`"refUserId" = ?`, id).
-		First(&comm).Error; err != nil {
-		return nil, fmt.Errorf("communication details not found")
-	}
-
-	var auth model.UserAuth
-	if err := db.Table(`"refUserAuthCred"`).
-		Where(`"refUserId" = ?`, id).
-		First(&auth).Error; err != nil {
-		return nil, fmt.Errorf("auth details not found")
-	}
-
-	response := &model.EmployeeResponse{
-		User:     user,
-		Username: auth.RefUACUsername,
-		Email:    comm.RefUCDEmail,
-		Mobile:   comm.RefUCDMobile,
-		DoorNo:   comm.RefUCDDoorNo,
-		Street:   comm.RefUCDStreet,
-		City:     comm.RefUCDCity,
-		State:    comm.RefUCDState,
-	}
-
-	return response, nil
+	return &employee, nil
 }
 
 func UpdateEmployeeService(db *gorm.DB, id string, data *model.EmployeePayload) error {

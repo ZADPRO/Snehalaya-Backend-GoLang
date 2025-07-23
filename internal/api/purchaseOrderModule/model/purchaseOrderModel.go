@@ -119,3 +119,41 @@ type PurchaseOrderItem struct {
 func (PurchaseOrderItem) TableName() string {
 	return `"purchaseOrder"."PurchaseOrderItemsInitial"`
 }
+
+type OrderRow struct {
+	PurchaseOrderID int    `gorm:"column:purchaseOrderId"`
+	PONumber        string `gorm:"column:poNumber"`
+	SupplierID      int    `gorm:"column:supplierId"`
+	BranchID        int    `gorm:"column:branchId"`
+	Status          int    `gorm:"column:status"`
+	ExpectedDate    string `gorm:"column:expectedDate"`
+	ModeOfTransport string `gorm:"column:modeOfTransport"`
+	SubTotal        string `gorm:"column:subTotal"`
+	DiscountOverall string `gorm:"column:discountOverall"`
+	PayAmount       string `gorm:"column:payAmount"`
+	IsTaxApplied    bool   `gorm:"column:isTaxApplied"`
+	TaxPercentage   string `gorm:"column:taxPercentage"`
+	TaxedAmount     string `gorm:"column:taxedAmount"`
+	TotalAmount     string `gorm:"column:totalAmount"`
+	TotalPaid       string `gorm:"column:totalPaid"`
+	PaymentPending  string `gorm:"column:paymentPending"`
+	CreatedAt       string `gorm:"column:createdAt"`
+	CreatedBy       string `gorm:"column:createdBy"`
+	UpdatedAt       string `gorm:"column:updatedAt"`
+	UpdatedBy       string `gorm:"column:updatedBy"`
+	IsDelete        bool   `gorm:"column:isDelete"`
+
+	// Supplier
+	SupplierName          string `gorm:"column:supplierName"`
+	SupplierCompanyName   string `gorm:"column:supplierCompanyName"`
+	SupplierGSTNumber     string `gorm:"column:supplierGSTNumber"`
+	SupplierEmail         string `gorm:"column:supplierEmail"`
+	SupplierContactNumber string `gorm:"column:supplierContactNumber"`
+	SupplierPaymentTerms  string `gorm:"column:supplierPaymentTerms"`
+	SupplierAddress       string `gorm:"column:supplierAddress"`
+
+	// Branch
+	BranchName    string `gorm:"column:branchName"`
+	BranchEmail   string `gorm:"column:branchEmail"`
+	BranchAddress string `gorm:"column:branchAddress"`
+}

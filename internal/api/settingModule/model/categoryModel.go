@@ -26,6 +26,19 @@ type SubCategory struct {
 	IsDelete         bool   `json:"isDelete" gorm:"column:isDelete"`
 }
 
+type SubCategoryResponse struct {
+	RefSubCategoryId int    `json:"refSubCategoryId" gorm:"column:refSubCategoryId"`
+	SubCategoryName  string `json:"subCategoryName" gorm:"column:subCategoryName"`
+	RefCategoryId    int    `json:"refCategoryId" gorm:"column:refCategoryId"`
+	CategoryName     string `json:"categoryName" gorm:"column:categoryName"`
+	SubCategoryCode  string `json:"subCategoryCode" gorm:"column:subCategoryCode"`
+	IsActive         bool   `json:"isActive" gorm:"column:isActive"`
+	CreatedAt        string `json:"createdAt" gorm:"column:createdAt"`
+	CreatedBy        string `json:"createdBy" gorm:"column:createdBy"`
+	UpdatedAt        string `json:"updatedAt" gorm:"column:updatedAt"`
+	UpdatedBy        string `json:"updatedBy" gorm:"column:updatedBY"`
+}
+
 type Branch struct {
 	RefBranchId   int    `gorm:"column:refBranchId;primaryKey;autoIncrement" json:"refBranchId"`
 	RefBranchName string `gorm:"column:refBranchName" json:"refBranchName"`
