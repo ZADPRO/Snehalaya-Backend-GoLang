@@ -97,3 +97,35 @@ func GetAllPurchaseOrdersController() gin.HandlerFunc {
 		})
 	}
 }
+
+func GetPurchaseOrderByIdController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("Get All Purchase Orders Controller")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		// dbConnt, sqlDB := db.InitDB()
+		// defer sqlDB.Close()
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("Fetched all purchase orders successfully")
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Fetched purchase orders successfully",
+			"token":   token,
+			// "data":    purchaseOrders,
+		})
+	}
+}

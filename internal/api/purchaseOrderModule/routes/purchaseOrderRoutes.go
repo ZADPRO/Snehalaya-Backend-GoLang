@@ -12,5 +12,6 @@ func PurhcaseOrderRoutes(router *gin.Engine) {
 	// CREATE INITIAL PRODUCTS
 	route.POST("/create", accesstoken.JWTMiddleware(), purchaseOrderController.CreatePurchaseOrderController())
 	route.GET("/read", accesstoken.JWTMiddleware(), purchaseOrderController.GetAllPurchaseOrdersController())
+	route.GET("/read/:id", accesstoken.JWTMiddleware(), purchaseOrderController.GetPurchaseOrderByIdController())
 
 }
