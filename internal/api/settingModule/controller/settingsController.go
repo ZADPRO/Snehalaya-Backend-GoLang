@@ -565,6 +565,16 @@ func CreateEmployeeController() gin.HandlerFunc {
 func GetAllEmployeesController() gin.HandlerFunc {
 	log := logger.InitLogger()
 	return func(c *gin.Context) {
+		log.Info("Create Employee Controller")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Missing context info"})
+			return
+		}
+
 		dbConn, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
@@ -574,7 +584,9 @@ func GetAllEmployeesController() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"status": true, "data": employees})
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		log.Info("Fetched all employees successfully")
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": employees, "token": token})
 	}
 }
 
