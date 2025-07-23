@@ -23,4 +23,10 @@ func PurhcaseOrderRoutes(router *gin.Engine) {
 	route.PUT("/dummy-products/bulk-reject", accesstoken.JWTMiddleware(), purchaseOrderController.BulkRejectDummyProducts())
 	route.PUT("/dummy-products/bulk-undo", accesstoken.JWTMiddleware(), purchaseOrderController.BulkUndoDummyProducts())
 
+	// PURCHASE ORDER - VIEW ALL PRODUCTS
+	route.GET("/list-all-products", accesstoken.JWTMiddleware(), purchaseOrderController.GetReceivedDummyProductsController())
+
+	// CREATE CATALOG
+	route.POST("/products", accesstoken.JWTMiddleware(), purchaseOrderController.CreateProductController())
+
 }

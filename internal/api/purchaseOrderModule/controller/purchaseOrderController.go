@@ -9,7 +9,6 @@ import (
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
-
 )
 
 // CREATE PURCHASE ORDER
@@ -257,5 +256,72 @@ func BulkUndoDummyProducts() gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Products reset to pending"})
+	}
+}
+
+func GetReceivedDummyProductsController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+		products, err := purchaseOrderService.GetReceivedDummyProductsService(dbConn)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to fetch received products",
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   products,
+		})
+	}
+}
+
+func CreateProductController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("Create Product Controller")
+
+		id, idOk := c.Get("id")
+		roleId, roleOk := c.Get("roleId")
+		branchId, branchOk := c.Get("branchId")
+
+		if !idOk || !roleOk || !branchOk {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "Missing authentication context",
+			})
+			return
+		}
+
+		var product purchaseOrderModel.Product
+		if err := c.ShouldBindJSON(&product); err != nil {
+			log.Error("Invalid JSON: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		token := accesstoken.CreateToken(id, roleId, branchId)
+
+		err := purchaseOrderService.CreateProductService(dbConnt, &product)
+		if err != nil {
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate SKU found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to create product"})
+			}
+			return
+		}
+
+		log.Info("Product created successfully")
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Product created", "token": token})
 	}
 }

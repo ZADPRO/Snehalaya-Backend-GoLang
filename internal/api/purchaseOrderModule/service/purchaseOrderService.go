@@ -225,6 +225,7 @@ func GetDummyProductsByPOIDService(db *gorm.DB, poID string) ([]purchaseOrderMod
 
 	if err := db.
 		Where(`"purchaseOrderId" = ? AND "isDelete" = ?`, poID, "false").
+		Order(`"dummyProductsId" ASC`).
 		Find(&dummyProducts).Error; err != nil {
 		return nil, err
 	}
@@ -327,4 +328,53 @@ func BulkUpdateDummyProducts(db *gorm.DB, ids []int, action string, reason strin
 		}
 	}
 	return nil
+}
+
+func GetReceivedDummyProductsService(db *gorm.DB) ([]purchaseOrderModel.ProductsDummyAcceptance, error) {
+	var receivedProducts []purchaseOrderModel.ProductsDummyAcceptance
+
+	err := db.
+		Table(`purchaseOrder."ProductsDummyAcceptance"`).
+		Where(`"isReceived" = ? AND "isDelete" = ?`, "true", "false").
+		Order(`"dummyProductsId" ASC`).
+		Find(&receivedProducts).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return receivedProducts, nil
+}
+
+func CreateProductService(db *gorm.DB, product *purchaseOrderModel.Product) error {
+	log := logger.InitLogger()
+
+	// Check for duplicate SKU
+	var existing purchaseOrderModel.Product
+	err := db.Table(`"purchaseOrder".products`).
+		Where(`sku = ? AND "isDelete" = ?`, product.SKU, "false").
+		First(&existing).Error
+
+	if err == nil {
+		log.Error("Duplicate product SKU found")
+		return fmt.Errorf("duplicate value found")
+	} else if err != gorm.ErrRecordNotFound {
+		log.Error("DB error while checking for duplicates: " + err.Error())
+		return err
+	}
+
+	// Set audit fields
+	now := time.Now().Format("2006-01-02 15:04:05")
+	product.CreatedAt = now
+	product.UpdatedAt = now
+	product.CreatedBy = "Admin"
+	product.UpdatedBy = "Admin"
+	product.IsDelete = "false"
+
+	// Insert into DB
+	err = db.Table(`"purchaseOrder".products`).Create(product).Error
+	if err != nil {
+		log.Error("Failed to create product: " + err.Error())
+	}
+	return err
 }
