@@ -11,7 +11,6 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
-
 )
 
 // CATEGORIES SERVICE
@@ -554,47 +553,59 @@ func GetEmployeeByIDService(db *gorm.DB, id string) (*model.EmployeeResponse, er
 }
 
 func UpdateEmployeeService(db *gorm.DB, id string, data *model.EmployeePayload) error {
-	return db.Transaction(func(tx *gorm.DB) error {
-		var user model.User
-		if err := tx.Where(`"refUserId" = ? AND "isDelete" = ?`, id, false).First(&user).Error; err != nil {
-			return fmt.Errorf("employee not found")
-		}
+	txn := db.Begin()
+	if txn.Error != nil {
+		return txn.Error
+	}
 
-		user.RefUserFName = data.FirstName
-		user.RefUserLName = data.LastName
-		user.RefUserDesignation = data.Designation
-		user.RefRTId = data.RoleTypeId
-		user.RefUserStatus = map[bool]string{true: "Active", false: "In Active"}[data.RefUserStatus]
-		user.RefUserBranchId = data.RefUserBranchId
-		user.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
-		user.UpdatedBy = "Admin"
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	updatedBy := "Admin"
 
-		if err := tx.Save(&user).Error; err != nil {
-			return err
-		}
+	// Step 1: Update Users
+	userUpdate := map[string]interface{}{
+		"refUserFName":       data.FirstName,
+		"refUserLName":       data.LastName,
+		"refUserDesignation": data.Designation,
+		"refUserStatus":      map[bool]string{true: "Active", false: "In Active"}[data.RefUserStatus],
+		"refUserBranchId":    data.RefUserBranchId,
+		"updatedAt":          timestamp,
+		"updatedBy":          updatedBy,
+	}
+	if err := txn.Table(`"Users"`).Where(`"refUserId" = ?`, id).Updates(userUpdate).Error; err != nil {
+		txn.Rollback()
+		return fmt.Errorf("failed to update user: %w", err)
+	}
 
-		// Also update communication
-		if err := tx.Model(&model.UserCommunication{}).
+	// Step 2: Update Auth (optional - only username update allowed)
+	if data.Username != "" {
+		if err := txn.Table(`"refUserAuthCred"`).
 			Where(`"refUserId" = ?`, id).
-			Updates(map[string]interface{}{
-				"refUCDEmail":  data.Email,
-				"refUCDMobile": data.Mobile,
-				"refUCDDoorNo": data.DoorNumber,
-				"refUCDStreet": data.StreetName,
-				"refUCDCity":   data.City,
-				"refUCDState":  data.State,
-				"updatedAt":    time.Now().Format("2006-01-02 15:04:05"),
-				"updatedBy":    "Admin",
-			}).Error; err != nil {
-			return err
+			Update("refUACUsername", data.Username).Error; err != nil {
+			txn.Rollback()
+			return fmt.Errorf("failed to update username: %w", err)
 		}
+	}
 
-		return nil
-	})
+	// Step 3: Update Communication
+	commUpdate := map[string]interface{}{
+		"refUCDEmail":  data.Email,
+		"refUCDMobile": data.Mobile,
+		"refUCDDoorNo": data.DoorNumber,
+		"refUCDStreet": data.StreetName,
+		"refUCDCity":   data.City,
+		"refUCDState":  data.State,
+		"updatedAt":    timestamp,
+		"updatedBy":    updatedBy,
+	}
+	if err := txn.Table(`"refUserCommunicationDetails"`).
+		Where(`"refUserId" = ?`, id).Updates(commUpdate).Error; err != nil {
+		txn.Rollback()
+		return fmt.Errorf("failed to update communication details: %w", err)
+	}
+
+	return txn.Commit().Error
 }
 
 func SoftDeleteEmployeeService(db *gorm.DB, id string) error {
-	return db.Model(&model.User{}).
-		Where(`"refUserId" = ?`, id).
-		Update(`"isDelete"`, true).Error
+	return db.Table(`"Users"`).Where(`"refUserId" = ?`, id).Update("isDelete", true).Error
 }
