@@ -2,6 +2,8 @@ package purchaseOrderService
 
 import (
 	"fmt"
+	"strconv"
+	"time"
 
 	purchaseOrderModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
@@ -37,7 +39,7 @@ func CreatePurchaseOrderService(db *gorm.DB, payload *purchaseOrderModel.CreateP
 		return err
 	}
 
-	// 2. Insert each Product with order.PurchaseOrderID
+	// 2. Insert Product Items and Dummy Acceptance Rows
 	for _, item := range payload.ProductDetails {
 		dbItem := purchaseOrderModel.PurchaseOrderItem{
 			PurchaseOrderID:  order.PurchaseOrderID,
@@ -61,6 +63,37 @@ func CreatePurchaseOrderService(db *gorm.DB, payload *purchaseOrderModel.CreateP
 
 		if err := db.Create(&dbItem).Error; err != nil {
 			return err
+		}
+
+		// 3. Insert N dummy product entries
+		qty, err := strconv.Atoi(item.PurchaseQuantity)
+		if err != nil {
+			return fmt.Errorf("invalid purchaseQuantity for product %s: %v", item.ProductName, err)
+		}
+
+		for i := 0; i < qty; i++ {
+			dummy := purchaseOrderModel.ProductsDummyAcceptance{
+				PurchaseOrderID:  order.PurchaseOrderID,
+				ProductName:      item.ProductName,
+				RefCategoryID:    item.RefCategoryID,
+				RefSubCategoryID: item.RefSubCategoryID,
+				HSNCode:          item.HSNCode,
+				DummySKU:         fmt.Sprintf("%s-%d", item.ProductName, i+1), // Or generate your own SKU logic
+				Price:            item.PurchasePrice,
+				DiscountAmount:   item.DiscountAmount,
+				DiscountPercent:  item.DiscountPrice, // Assuming you map accordingly
+				IsReceived:       "false",
+				AcceptanceStatus: "Pending",
+				CreatedAt:        item.CreatedAt,
+				CreatedBy:        createdBy,
+				UpdatedAt:        item.UpdatedAt,
+				UpdatedBy:        item.UpdatedBy,
+				IsDelete:         "false",
+			}
+
+			if err := db.Create(&dummy).Error; err != nil {
+				return fmt.Errorf("failed to create dummy product for %s: %v", item.ProductName, err)
+			}
 		}
 	}
 
@@ -170,7 +203,8 @@ func GetAllPurchaseOrdersService(db *gorm.DB) ([]purchaseOrderModel.CreatePORequ
 				UpdatedBy:       row.UpdatedBy,
 				IsDelete:        row.IsDelete,
 			},
-			ProductDetails: products,
+			ProductDetails:  products,
+			PurchaseOrderID: row.PurchaseOrderID,
 		}
 
 		log.Printf("\n\nDEBUG: First row sample: %+v\n", orderRows[0])
@@ -184,4 +218,113 @@ func GetAllPurchaseOrdersService(db *gorm.DB) ([]purchaseOrderModel.CreatePORequ
 	fmt.Printf("DEBUG: Final orders list = %+v\n", orders)
 
 	return orders, nil
+}
+
+func GetDummyProductsByPOIDService(db *gorm.DB, poID string) ([]purchaseOrderModel.ProductsDummyAcceptance, error) {
+	var dummyProducts []purchaseOrderModel.ProductsDummyAcceptance
+
+	if err := db.
+		Where(`"purchaseOrderId" = ? AND "isDelete" = ?`, poID, "false").
+		Find(&dummyProducts).Error; err != nil {
+		return nil, err
+	}
+
+	return dummyProducts, nil
+}
+
+func UpdateDummyProductStatusService(db *gorm.DB, dummyProductId int, status interface{}, reason string) error {
+	var product purchaseOrderModel.ProductsDummyAcceptance
+
+	if err := db.First(&product, dummyProductId).Error; err != nil {
+		return fmt.Errorf("dummy product not found: %v", err)
+	}
+
+	switch val := status.(type) {
+	case bool:
+		if val {
+			// ✅ Accept
+			if product.IsReceived != "true" {
+				now := time.Now()
+				month := fmt.Sprintf("%02d", now.Month())
+				year := fmt.Sprintf("%02d", now.Year()%100)
+
+				var count int64
+				db.Model(&purchaseOrderModel.ProductsDummyAcceptance{}).
+					Where("dummySKU LIKE ?", fmt.Sprintf("SS%s%s%%", month, year)).
+					Count(&count)
+
+				sku := fmt.Sprintf("SS%s%s%05d", month, year, count+1)
+
+				product.DummySKU = sku
+				product.IsReceived = "true"
+				product.AcceptanceStatus = "Received"
+			}
+		} else {
+			// ❌ Reject
+			product.DummySKU = ""
+			product.IsReceived = "false"
+			product.AcceptanceStatus = reason
+		}
+	case string:
+		if val == "undo" {
+			// 🔄 Undo
+			product.DummySKU = ""
+			product.IsReceived = "false"
+			product.AcceptanceStatus = "Pending"
+		}
+	default:
+		return fmt.Errorf("invalid status type")
+	}
+
+	return db.Save(&product).Error
+}
+
+// BULK UPDATE - ACCEPT, REJECT, UNDO
+func BulkUpdateDummyProducts(db *gorm.DB, ids []int, action string, reason string) error {
+	var products []purchaseOrderModel.ProductsDummyAcceptance
+	if err := db.Where(`"dummyProductsId" IN ?`, ids).Find(&products).Error; err != nil {
+		return err
+	}
+
+	now := time.Now()
+	month := fmt.Sprintf("%02d", now.Month())
+	year := fmt.Sprintf("%02d", now.Year()%100)
+
+	switch action {
+	case "accept":
+		// Get latest SKU count
+		var count int64
+		db.Model(&purchaseOrderModel.ProductsDummyAcceptance{}).
+			Where("dummySKU LIKE ?", fmt.Sprintf("SS%s%s%%", month, year)).
+			Count(&count)
+
+		for i := range products {
+			if products[i].IsReceived != "true" {
+				count++
+				products[i].DummySKU = fmt.Sprintf("SS%s%s%05d", month, year, count)
+				products[i].IsReceived = "true"
+				products[i].AcceptanceStatus = "Received"
+			}
+		}
+	case "reject":
+		for i := range products {
+			products[i].DummySKU = ""
+			products[i].IsReceived = "false"
+			products[i].AcceptanceStatus = reason
+		}
+	case "undo":
+		for i := range products {
+			products[i].DummySKU = ""
+			products[i].IsReceived = "false"
+			products[i].AcceptanceStatus = "Pending"
+		}
+	}
+
+	// Save all
+	for _, product := range products {
+		if err := db.Save(&product).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

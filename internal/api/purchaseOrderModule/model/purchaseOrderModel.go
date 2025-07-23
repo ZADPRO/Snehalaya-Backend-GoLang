@@ -65,6 +65,7 @@ type CreatePORequest struct {
 	BranchDetails   BranchDetails    `json:"branchDetails"`
 	ProductDetails  []ProductDetails `json:"productDetails"`
 	TotalSummary    TotalSummary     `json:"totalSummary"`
+	PurchaseOrderID int              `json:"purchaseOrderId"`
 }
 
 type CreatePurchaseOrder struct {
@@ -156,4 +157,28 @@ type OrderRow struct {
 	BranchName    string `gorm:"column:branchName"`
 	BranchEmail   string `gorm:"column:branchEmail"`
 	BranchAddress string `gorm:"column:branchAddress"`
+}
+
+type ProductsDummyAcceptance struct {
+	DummyProductsID  int    `gorm:"column:dummyProductsId;primaryKey;autoIncrement"`
+	PurchaseOrderID  int    `gorm:"column:purchaseOrderId"`
+	ProductName      string `gorm:"column:productName"`
+	RefCategoryID    int    `gorm:"column:refCategoryId"`
+	RefSubCategoryID int    `gorm:"column:refSubCategoryId"`
+	HSNCode          string `gorm:"column:HSNCode"`
+	DummySKU         string `gorm:"column:dummySKU"`
+	Price            string `gorm:"column:price"`
+	DiscountPercent  string `gorm:"column:discountPercentage"`
+	DiscountAmount   string `gorm:"column:discountAmount"`
+	IsReceived       string `gorm:"column:isReceived"`
+	AcceptanceStatus string `gorm:"column:acceptanceStatus"`
+	CreatedAt        string `gorm:"column:createdAt"`
+	CreatedBy        string `gorm:"column:createdBy"`
+	UpdatedAt        string `gorm:"column:updatedAt"`
+	UpdatedBy        string `gorm:"column:updatedBy"`
+	IsDelete         string `gorm:"column:isDelete"`
+}
+
+func (ProductsDummyAcceptance) TableName() string {
+	return `"purchaseOrder"."ProductsDummyAcceptance"`
 }
