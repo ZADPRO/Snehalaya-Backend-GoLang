@@ -335,7 +335,7 @@ func GetReceivedDummyProductsService(db *gorm.DB) ([]purchaseOrderModel.Products
 
 	err := db.
 		Table(`purchaseOrder."ProductsDummyAcceptance"`).
-		Where(`"isReceived" = ? AND "isDelete" = ?`, "true", "false").
+		Where(`"isReceived" = ? AND "isDelete" = ? AND "acceptanceStatus" = ?`, "true", "false", "Received").
 		Order(`"dummyProductsId" ASC`).
 		Find(&receivedProducts).Error
 
@@ -375,6 +375,17 @@ func CreateProductService(db *gorm.DB, product *purchaseOrderModel.Product) erro
 	err = db.Table(`"purchaseOrder".products`).Create(product).Error
 	if err != nil {
 		log.Error("Failed to create product: " + err.Error())
+		return err
 	}
-	return err
+
+	// ✅ Update the acceptanceStatus to "Created"
+	err = db.Table(`"purchaseOrder"."ProductsDummyAcceptance"`).
+		Where(`"dummySKU" = ?`, product.SKU).
+		Update(`acceptanceStatus`, "Created").Error
+	if err != nil {
+		log.Error("Failed to update acceptanceStatus: " + err.Error())
+		return err
+	}
+
+	return nil
 }
