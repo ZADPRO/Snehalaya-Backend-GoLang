@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/productsImageUpload/config"
+	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -18,18 +19,37 @@ import (
 var MinioClient *minio.Client
 
 func init() {
-	useSSL := os.Getenv("MINIO_USE_SSL") == "true"
-	endpoint := os.Getenv("MINIO_ENDPOINT") + ":" + "443"
+	log := logger.InitLogger()
+
+	useSSL := true
+
+	endpoint := "test-zad.brightoncloudtech.com:443"
+
+	accessKey := os.Getenv("MINIO_ACCESS_KEY")
+	secretKey := os.Getenv("MINIO_SECRET_KEY")
+
+	// Logging fetched env values
+	if accessKey == "" || secretKey == "" {
+		log.Error("❌ MINIO_ACCESS_KEY or MINIO_SECRET_KEY not found in .env")
+	} else {
+		log.Info("✅ MINIO credentials loaded from .env")
+		log.Error("🔑 MINIO_ACCESS_KEY: %s", accessKey[:4]+"****")
+		log.Info("🔐 MINIO_SECRET_KEY: %s", secretKey[:4]+"****")
+	}
+
+	log.Info("🌐 MinIO Endpoint: %s", endpoint)
+	log.Info("🔒 Use SSL: %v", useSSL)
 
 	client, err := minio.New(endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(os.Getenv("MINIO_ACCESS_KEY"), os.Getenv("MINIO_SECRET_KEY"), ""),
+		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
 	})
 	if err != nil {
-		panic(err)
+		log.Error("❌ Failed to initialize MinIO client: %v", err)
 	}
 
 	MinioClient = client
+	log.Info("✅ MinIO client initialized successfully")
 }
 
 func CreateUploadURL(fileName string, expireMins int) (string, string, error) {
