@@ -31,16 +31,20 @@ func init() {
 }
 
 func CreateUploadURL(fileName string, expireMins int) (string, string, error) {
+	log.Printf("Creating presigned PUT URL | fileName: %s | expireMins: %d", fileName, expireMins)
+
 	bucket := os.Getenv("MINIO_BUCKET")
 	expiry := time.Duration(expireMins) * time.Minute
 
 	uploadURL, err := MinioClient.PresignedPutObject(context.Background(), bucket, fileName, expiry)
 	if err != nil {
+		log.Printf("Failed to generate presigned PUT URL | Error: %v", err)
 		return "", "", err
 	}
 
 	fileURL, err := GetFileURL(fileName, expireMins)
 	if err != nil {
+		log.Printf("Failed to generate file GET URL after PUT | Error: %v", err)
 		return "", "", err
 	}
 
@@ -48,13 +52,15 @@ func CreateUploadURL(fileName string, expireMins int) (string, string, error) {
 }
 
 func GetFileURL(fileName string, expireMins int) (string, error) {
+	log.Printf("Generating presigned GET URL | fileName: %s | expireMins: %d", fileName, expireMins)
+
 	bucket := os.Getenv("MINIO_BUCKET")
 	expiry := time.Duration(expireMins) * time.Minute
-
 	reqParams := url.Values{}
 
 	fileURL, err := MinioClient.PresignedGetObject(context.Background(), bucket, fileName, expiry, reqParams)
 	if err != nil {
+		log.Printf("Error generating presigned GET URL | Error: %v", err)
 		return "", err
 	}
 
@@ -62,12 +68,15 @@ func GetFileURL(fileName string, expireMins int) (string, error) {
 }
 
 func FetchAllEnvVariables() map[string]string {
+	log.Println("Reading .env variables from file")
 	envMap, err := godotenv.Read(".env")
 	if err != nil {
-		log.Println("Error reading .env file:", err)
+		log.Printf("Error reading .env file: %v", err)
 		return map[string]string{
 			"error": "Failed to load .env",
 		}
 	}
+
+	log.Printf("Loaded %d environment variables", len(envMap))
 	return envMap
 }
