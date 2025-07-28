@@ -12,4 +12,6 @@ func ImageUploadRoutes(router *gin.Engine) {
 
 	route.GET("/env", imageUploadController.GetEnvVariables)
 
+	route.POST("/generateURL", imageUploadController.GetPresignedURL)
+
 }

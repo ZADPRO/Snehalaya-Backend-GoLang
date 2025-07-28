@@ -2,11 +2,14 @@ package imageUploadService
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"math/rand"
 	"net/url"
 	"os"
 	"time"
 
+	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/productsImageUpload/config"
 	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -16,8 +19,7 @@ var MinioClient *minio.Client
 
 func init() {
 	useSSL := os.Getenv("MINIO_USE_SSL") == "true"
-	port := os.Getenv("MINIO_PORT")
-	endpoint := os.Getenv("MINIO_ENDPOINT") + ":" + port
+	endpoint := os.Getenv("MINIO_ENDPOINT") + ":" + "443"
 
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(os.Getenv("MINIO_ACCESS_KEY"), os.Getenv("MINIO_SECRET_KEY"), ""),
@@ -79,4 +81,33 @@ func FetchAllEnvVariables() map[string]string {
 
 	log.Printf("Loaded %d environment variables", len(envMap))
 	return envMap
+}
+
+func GeneratePresignedURL(extension string) (string, string, error) {
+	if config.MinioClient == nil {
+		log.Println("❌ MinIO client is nil")
+		return "", "", fmt.Errorf("MinIO client not initialized")
+	}
+
+	bucket := "zadroit-dev"
+
+	timestamp := time.Now().Unix()
+	randomPart := rand.Intn(10000)
+	filename := fmt.Sprintf("IMG-%d-%d.%s", timestamp, randomPart, extension)
+	objectName := "uploads/" + filename
+
+	log.Println("🔄 Generating pre-signed URL for:", objectName)
+
+	presignedURL, err := config.MinioClient.PresignedPutObject(
+		context.Background(),
+		bucket,
+		objectName,
+		15*time.Minute,
+	)
+	if err != nil {
+		log.Printf("❌ Failed to generate pre-signed URL: %v\n", err)
+		return "", "", err
+	}
+
+	return presignedURL.String(), filename, nil
 }
