@@ -75,3 +75,26 @@ func GetEnvVariables(c *gin.Context) {
 		"env": envVars,
 	})
 }
+
+type PresignRequest struct {
+	Extension string `json:"extension" binding:"required"` // e.g., "jpg"
+}
+
+func GetPresignedURL(c *gin.Context) {
+	var req PresignRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	url, filename, err := imageUploadService.GeneratePresignedURL(req.Extension)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate URL"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"uploadUrl": url,
+		"fileName":  filename,
+	})
+}
