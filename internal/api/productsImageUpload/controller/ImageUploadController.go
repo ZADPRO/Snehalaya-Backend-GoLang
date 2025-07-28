@@ -7,7 +7,6 @@ import (
 	imageUploadService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/productsImageUpload/service"
 	"github.com/gin-gonic/gin"
 	"github.com/labstack/gommon/log"
-
 )
 
 func CreateUploadURLHandler(c *gin.Context) {
@@ -53,4 +52,11 @@ func GetFileURLHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"fileUrl": fileURL})
+}
+
+func GetEnvVariables(c *gin.Context) {
+	envVars := imageUploadService.FetchAllEnvVariables()
+	c.JSON(http.StatusOK, gin.H{
+		"env": envVars,
+	})
 }

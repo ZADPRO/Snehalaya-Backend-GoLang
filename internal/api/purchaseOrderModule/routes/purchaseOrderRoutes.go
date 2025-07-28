@@ -4,7 +4,6 @@ import (
 	purchaseOrderController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
-
 )
 
 func PurhcaseOrderRoutes(router *gin.Engine) {
@@ -25,6 +24,7 @@ func PurhcaseOrderRoutes(router *gin.Engine) {
 
 	// PURCHASE ORDER - VIEW ALL PRODUCTS
 	route.GET("/list-all-products", accesstoken.JWTMiddleware(), purchaseOrderController.GetReceivedDummyProductsController())
+	route.GET("/list-all-products-barcode", accesstoken.JWTMiddleware(), purchaseOrderController.GetReceivedDummyProductsBarcodeController())
 
 	// CREATE CATALOG
 	route.POST("/products", accesstoken.JWTMiddleware(), purchaseOrderController.CreateProductController())

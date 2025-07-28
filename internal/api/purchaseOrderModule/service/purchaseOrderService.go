@@ -6,14 +6,20 @@ import (
 	"time"
 
 	purchaseOrderModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/model"
+	purchaseOrderQuery "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/query"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, payload *purchaseOrderModel.CreatePORequest, createdBy string) error {
+
+	poNumber, err := purchaseOrderQuery.GeneratePONumber(db)
+	if err != nil {
+		return fmt.Errorf("failed to generate PO number: %v", err)
+	}
 	// 1. Insert into CreatePurchaseOrder
 	order := purchaseOrderModel.CreatePurchaseOrder{
-		PONumber:        payload.TotalSummary.PONumber,
+		PONumber:        poNumber,
 		SupplierID:      payload.TotalSummary.SupplierID,
 		BranchID:        payload.TotalSummary.BranchID,
 		Status:          payload.TotalSummary.Status,
@@ -321,7 +327,7 @@ func BulkUpdateDummyProducts(db *gorm.DB, ids []int, action string, reason strin
 		}
 	}
 
-	// Save all
+	// Save all products
 	for _, product := range products {
 		if err := db.Save(&product).Error; err != nil {
 			return err
@@ -330,20 +336,76 @@ func BulkUpdateDummyProducts(db *gorm.DB, ids []int, action string, reason strin
 	return nil
 }
 
-func GetReceivedDummyProductsService(db *gorm.DB) ([]purchaseOrderModel.ProductsDummyAcceptance, error) {
-	var receivedProducts []purchaseOrderModel.ProductsDummyAcceptance
+type ReceivedDummyProductWithPO struct {
+	purchaseOrderModel.ProductsDummyAcceptance
+	PONumber string `gorm:"column:poNumber" json:"poNumber"` // ensure column tag matches SQL
+}
 
-	err := db.
-		Table(`purchaseOrder."ProductsDummyAcceptance"`).
-		Where(`"isReceived" = ? AND "isDelete" = ? AND "acceptanceStatus" = ?`, "true", "false", "Received").
-		Order(`"dummyProductsId" ASC`).
-		Find(&receivedProducts).Error
+type ReceivedDummyProduct struct {
+	Name    string `json:"name" gorm:"column:name"`
+	HSNCode string `json:"hsnCode" gorm:"column:HSNCode"`
+	SKU     string `json:"sku" gorm:"column:sku"`
+	Price   string `json:"price" gorm:"column:price"`
+	Status  string `json:"status" gorm:"column:status"`
+}
 
+func GetReceivedDummyProductsService(db *gorm.DB) ([]ReceivedDummyProductWithPO, error) {
+	var result []ReceivedDummyProductWithPO
+
+	query := `
+		SELECT 
+			"PDA".*, 
+			"CPO"."poNumber"
+		FROM 
+			"purchaseOrder"."ProductsDummyAcceptance" AS "PDA"
+		JOIN 
+			"purchaseOrder"."CreatePurchaseOrder" AS "CPO"
+		ON 
+			"PDA"."purchaseOrderId" = "CPO"."purchaseOrderId"
+		WHERE 
+			"PDA"."isReceived" = 'true' AND 
+			"PDA"."isDelete" = 'false' AND 
+			"PDA"."acceptanceStatus" = 'Received'
+		ORDER BY 
+			"PDA"."dummyProductsId" ASC;
+	`
+
+	err := db.Raw(query).Scan(&result).Error
 	if err != nil {
 		return nil, err
 	}
 
-	return receivedProducts, nil
+	return result, nil
+}
+
+func GetReceivedDummyProductsBarcodeService(db *gorm.DB) ([]ReceivedDummyProduct, error) {
+	var result []ReceivedDummyProduct
+
+	query := `
+		SELECT 
+			p."name",
+			pda."HSNCode",
+			pda."dummySKU" AS sku,
+			pda."price",
+			'Created' AS status
+		FROM 
+			"purchaseOrder"."ProductsDummyAcceptance" pda
+		JOIN 
+			"purchaseOrder".products p 
+				ON pda."dummySKU" = p.sku
+		WHERE 
+			(pda."isDelete" IS NULL OR pda."isDelete" != 'true')
+			AND pda."acceptanceStatus" = 'Created'
+			AND pda."isReceived" = 'true';
+	`
+
+	err := db.Raw(query).Scan(&result).Error
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("Result:", result)
+	return result, nil
 }
 
 func CreateProductService(db *gorm.DB, product *purchaseOrderModel.Product) error {
