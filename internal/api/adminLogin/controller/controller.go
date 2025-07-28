@@ -13,7 +13,6 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"github.com/gin-gonic/gin"
-
 )
 
 func AdminLoginController() gin.HandlerFunc {
@@ -177,10 +176,20 @@ func ResetPasswordController() gin.HandlerFunc {
 			return
 		}
 
-		err = dbConn.Exec(`UPDATE "refUserAuthCred"
+		err = dbConn.Exec(`
+			WITH target_user AS (
+				SELECT u."refUserId"
+				FROM "Users" u
+				JOIN "refUserCommunicationDetails" comm ON u."refUserId" = comm."refUserId"
+				WHERE comm."refUCDEmail" = ?
+				AND (u."isDelete" IS FALSE OR u."isDelete" IS NULL)
+				ORDER BY u."refUserId"
+				LIMIT 1
+			)
+			UPDATE "refUserAuthCred"
 			SET "refUACPassword" = ?, "refUACHashedPassword" = ?
-			WHERE "refUserId" = (SELECT "refUserId" FROM "refUserCommunicationDetails" WHERE "refUCDEmail" = ?)`,
-			req.NewPassword, hashedPassword, req.Email).Error
+			WHERE "refUserId" = (SELECT "refUserId" FROM target_user)`,
+			req.Email, req.NewPassword, hashedPassword).Error
 
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Password update failed"})

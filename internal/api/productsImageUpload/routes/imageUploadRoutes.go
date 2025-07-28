@@ -9,4 +9,7 @@ func ImageUploadRoutes(router *gin.Engine) {
 	route := router.Group("/api/v1/imageUpload")
 	route.GET("/productImages/:filename/:expireMinsDuration", imageUploadController.CreateUploadURLHandler)
 	route.GET("/getProductImage/:filename/:expireMins", imageUploadController.GetFileURLHandler)
+
+	route.GET("/env", imageUploadController.GetEnvVariables)
+
 }

@@ -3,6 +3,7 @@ package settingsService
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	transactionLogger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/helper/transactions/service"
@@ -111,6 +112,38 @@ func DeleteCategoryService(db *gorm.DB, id string) error {
 			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
 			"updatedBy": "Admin",
 		}).Error
+}
+
+func BulkDeleteCategoriesService(db *gorm.DB, ids []int) error {
+	log := logger.InitLogger()
+	log.Info("Soft deleting categories with IDs: ", ids)
+
+	return db.Table("Categories").
+		Where(`"refCategoryid" IN (?)`, ids).
+		Updates(map[string]interface{}{
+			"isDelete":  true,
+			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
+			"updatedBy": "Admin",
+		}).Error
+}
+
+func CheckSubcategoriesExistence(db *gorm.DB, categoryIDs []int) (map[string][]model.SubCategory, error) {
+	var subcategories []model.SubCategory
+	result := make(map[string][]model.SubCategory)
+
+	err := db.Table("SubCategories").
+		Where(`"refCategoryId" IN (?) AND "isDelete" = false`, categoryIDs).
+		Find(&subcategories).Error
+	if err != nil {
+		return nil, err
+	}
+
+	for _, sub := range subcategories {
+		key := strconv.Itoa(sub.RefCategoryId) // ✅ Convert int to string
+		result[key] = append(result[key], sub)
+	}
+
+	return result, nil
 }
 
 // SUB CATEGORIES SERVICE
