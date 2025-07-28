@@ -190,6 +190,71 @@ func DeleteCategoryController() gin.HandlerFunc {
 	}
 }
 
+func BulkDeleteCategoryController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("Bulk Delete Category Controller")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var request struct {
+			CategoryIDs []int `json:"categoryIds"`
+			ForceDelete bool  `json:"forceDelete"`
+		}
+
+		if err := c.ShouldBindJSON(&request); err != nil || len(request.CategoryIDs) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid category IDs"})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		// ✅ Use CheckSubcategoriesExistence here
+		subcategoriesMap, err := settingsService.CheckSubcategoriesExistence(dbConnt, request.CategoryIDs)
+		if err != nil {
+			log.Error("Error checking subcategories: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Internal server error"})
+			return
+		}
+
+		if len(subcategoriesMap) > 0 && !request.ForceDelete {
+			c.JSON(http.StatusConflict, gin.H{
+				"status":             false,
+				"message":            "Some categories contain subcategories. Deleting them will make subcategories idle.",
+				"subcategoriesMap":   subcategoriesMap,
+				"confirmationNeeded": true,
+			})
+			return
+		}
+
+		err = settingsService.BulkDeleteCategoriesService(dbConnt, request.CategoryIDs)
+		if err != nil {
+			log.Error("Service error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to delete categories"})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Categories deleted successfully",
+			"token":   token,
+		})
+	}
+}
+
 // SUB CATEGORIES CONTROLLER
 
 func CreateSubCategoryController() gin.HandlerFunc {

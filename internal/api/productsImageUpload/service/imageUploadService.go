@@ -2,10 +2,12 @@ package imageUploadService
 
 import (
 	"context"
+	"log"
 	"net/url"
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -57,4 +59,15 @@ func GetFileURL(fileName string, expireMins int) (string, error) {
 	}
 
 	return fileURL.String(), nil
+}
+
+func FetchAllEnvVariables() map[string]string {
+	envMap, err := godotenv.Read(".env")
+	if err != nil {
+		log.Println("Error reading .env file:", err)
+		return map[string]string{
+			"error": "Failed to load .env",
+		}
+	}
+	return envMap
 }

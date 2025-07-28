@@ -281,6 +281,28 @@ func GetReceivedDummyProductsController() gin.HandlerFunc {
 	}
 }
 
+func GetReceivedDummyProductsBarcodeController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+		products, err := purchaseOrderService.GetReceivedDummyProductsBarcodeService(dbConn)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to fetch received products",
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   products,
+		})
+	}
+}
+
 func CreateProductController() gin.HandlerFunc {
 	log := logger.InitLogger()
 

@@ -13,5 +13,5 @@ func GeneratePONumber(db *gorm.DB) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("PO-2025-%04d", count+1), nil
+	return fmt.Sprintf("PO-0725-%04d", count+1), nil
 }
