@@ -13,10 +13,12 @@ import (
 	purchaseOrderRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/routes"
 	settingsRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/routes"
 	supplierRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/supplierModule/routes"
+	minioConfig "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/productsImageUpload/config"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+
 )
 
 func main() {
@@ -30,6 +32,9 @@ func main() {
 
 	// INIT DB
 	db.InitDB()
+
+	//MIN IO INIT
+	minioConfig.InitMinio()
 
 	// CORS CONFIG
 	r.Use(cors.New(cors.Config{
