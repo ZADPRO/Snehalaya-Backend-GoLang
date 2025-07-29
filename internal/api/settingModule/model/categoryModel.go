@@ -127,11 +127,13 @@ type EmployeePayload struct {
 
 type EmployeeResponse struct {
 	User
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Mobile   string `json:"mobile"`
-	DoorNo   string `json:"doorNumber"`
-	Street   string `json:"streetName"`
-	City     string `json:"city"`
-	State    string `json:"state"`
+	Username   string `json:"username"`
+	Email      string `json:"email"`
+	Mobile     string `json:"mobile"`
+	DoorNo     string `json:"doorNumber"`
+	Street     string `json:"streetName"`
+	City       string `json:"city"`
+	State      string `json:"state"`
+	Role       string `json:"role" gorm:"column:role"`
+	BranchName string `json:"branch" gorm:"column:branch"`
 }
