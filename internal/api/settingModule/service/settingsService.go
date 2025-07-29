@@ -642,3 +642,88 @@ func UpdateEmployeeService(db *gorm.DB, id string, data *model.EmployeePayload) 
 func SoftDeleteEmployeeService(db *gorm.DB, id string) error {
 	return db.Table(`"Users"`).Where(`"refUserId" = ?`, id).Update("isDelete", true).Error
 }
+
+func GetEmployeeService(db *gorm.DB, id string) (*model.EmployeeResponse, error) {
+	var employee model.EmployeeResponse
+
+	query := `
+		SELECT 
+			u.*, 
+			a."refUACUsername" AS username, 
+			c."refUCDEmail" AS email, 
+			c."refUCDMobile" AS mobile,
+			c."refUCDDoorNo" AS doorNo, 
+			c."refUCDStreet" AS street,
+			c."refUCDCity" AS city,
+			c."refUCDState" AS state,
+		r."refRTName" as role,
+		b."refBranchName" as branch
+			FROM public."Users" u
+			LEFT JOIN public."refUserAuthCred" a ON u."refUserId" = a."refUserId"
+			LEFT JOIN public."refUserCommunicationDetails" c ON u."refUserId" = c."refUserId"
+		LEFT JOIN public."RoleType" r ON u."refRTId" = r."refRTId"
+		LEFT JOIN public."Branches" b ON u."refUserBranchId" = b."refBranchId"
+			WHERE u."isDelete" = false AND u."refUserId" = ?
+			ORDER BY u."refUserId" ASC;
+	`
+
+	if err := db.Raw(query, id).Scan(&employee).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch employee: %w", err)
+	}
+
+	return &employee, nil
+}
+
+func UpdateProfileService(db *gorm.DB, id string, data *model.EmployeePayload) error {
+	txn := db.Begin()
+	if txn.Error != nil {
+		return txn.Error
+	}
+
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	updatedBy := "Admin"
+
+	// Step 1: Update Users
+	userUpdate := map[string]interface{}{
+		"refUserFName":       data.FirstName,
+		"refUserLName":       data.LastName,
+		"refUserDesignation": data.Designation,
+		"refUserStatus":      map[bool]string{true: "Active", false: "In Active"}[data.RefUserStatus],
+		"refUserBranchId":    data.RefUserBranchId,
+		"updatedAt":          timestamp,
+		"updatedBy":          updatedBy,
+	}
+	if err := txn.Table(`"Users"`).Where(`"refUserId" = ?`, id).Updates(userUpdate).Error; err != nil {
+		txn.Rollback()
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+
+	// Step 2: Update Auth (optional - only username update allowed)
+	if data.Username != "" {
+		if err := txn.Table(`"refUserAuthCred"`).
+			Where(`"refUserId" = ?`, id).
+			Update("refUACUsername", data.Username).Error; err != nil {
+			txn.Rollback()
+			return fmt.Errorf("failed to update username: %w", err)
+		}
+	}
+
+	// Step 3: Update Communication
+	commUpdate := map[string]interface{}{
+		"refUCDEmail":  data.Email,
+		"refUCDMobile": data.Mobile,
+		"refUCDDoorNo": data.DoorNumber,
+		"refUCDStreet": data.StreetName,
+		"refUCDCity":   data.City,
+		"refUCDState":  data.State,
+		"updatedAt":    timestamp,
+		"updatedBy":    updatedBy,
+	}
+	if err := txn.Table(`"refUserCommunicationDetails"`).
+		Where(`"refUserId" = ?`, id).Updates(commUpdate).Error; err != nil {
+		txn.Rollback()
+		return fmt.Errorf("failed to update communication details: %w", err)
+	}
+
+	return txn.Commit().Error
+}

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/model"
@@ -708,5 +709,67 @@ func DeleteEmployeeController() gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Employee deleted (soft) successfully"})
+	}
+}
+
+func GetEmployeeController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		idValue, exists := c.Get("id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Unauthorized: No ID in token"})
+			return
+		}
+
+		idStr := fmt.Sprintf("%v", idValue) // convert to string if needed
+
+		employee, err := settingsService.GetEmployeeService(dbConn, idStr)
+		if err != nil {
+			log.Error("Failed to fetch employee: " + err.Error())
+			c.JSON(http.StatusNotFound, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": employee})
+	}
+}
+
+func UpdateProfileController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		// ✅ Get user ID from token (context set by middleware)
+		idValue, exists := c.Get("id")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Unauthorized"})
+			return
+		}
+
+		id, ok := idValue.(string)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Invalid user ID format"})
+			return
+		}
+
+		var payload model.EmployeePayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		err := settingsService.UpdateProfileService(dbConn, id, &payload)
+		if err != nil {
+			log.Error("Failed to update employee: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Employee updated successfully"})
 	}
 }
