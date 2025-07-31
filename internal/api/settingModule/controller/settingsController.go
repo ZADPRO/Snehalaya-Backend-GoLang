@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/model"
 	settingsService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/service"
@@ -751,13 +752,21 @@ func UpdateProfileController() gin.HandlerFunc {
 			return
 		}
 
-		id, ok := idValue.(string)
-		if !ok {
+		var id string
+		switch v := idValue.(type) {
+		case string:
+			id = v
+		case float64:
+			id = fmt.Sprintf("%.0f", v)
+		case int:
+			id = strconv.Itoa(v)
+		default:
+			log.Error(fmt.Sprintf("Unexpected ID type: %T", v))
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Invalid user ID format"})
 			return
 		}
 
-		var payload model.EmployeePayload
+		var payload model.ProfilePayload
 		if err := c.ShouldBindJSON(&payload); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
 			return
@@ -765,11 +774,11 @@ func UpdateProfileController() gin.HandlerFunc {
 
 		err := settingsService.UpdateProfileService(dbConn, id, &payload)
 		if err != nil {
-			log.Error("Failed to update employee: " + err.Error())
+			log.Error("Failed to update Profile: " + err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Employee updated successfully"})
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Profile updated successfully"})
 	}
 }
