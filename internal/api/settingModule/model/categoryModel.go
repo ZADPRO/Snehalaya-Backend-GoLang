@@ -125,12 +125,28 @@ type EmployeePayload struct {
 	State           string `json:"state"`
 }
 
+type ProfilePayload struct {
+	RefUserId       int    `json:"refUserId"`
+	FirstName       string `json:"firstName"`
+	LastName        string `json:"lastName"`
+	Designation     string `json:"designation"`
+	RoleTypeId      int    `json:"roleTypeId"`
+	RefUserBranchId int    `gorm:"column:refUserBranchId"`
+	Username        string `json:"username"`
+	Mobile          string `json:"mobile"`
+	Email           string `json:"email"`
+	DoorNumber      string `json:"doorNumber"`
+	StreetName      string `json:"streetName"`
+	City            string `json:"city"`
+	State           string `json:"state"`
+}
+
 type EmployeeResponse struct {
 	User
 	Username   string `json:"username"`
 	Email      string `json:"email"`
 	Mobile     string `json:"mobile"`
-	DoorNo     string `json:"doorNumber"`
+	Doorno     string `json:"doorNumber"`
 	Street     string `json:"streetName"`
 	City       string `json:"city"`
 	State      string `json:"state"`

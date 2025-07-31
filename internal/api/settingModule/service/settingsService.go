@@ -674,7 +674,7 @@ func GetEmployeeService(db *gorm.DB, id string) (*model.EmployeeResponse, error)
 	return &employee, nil
 }
 
-func UpdateProfileService(db *gorm.DB, id string, data *model.EmployeePayload) error {
+func UpdateProfileService(db *gorm.DB, id string, data *model.ProfilePayload) error {
 	txn := db.Begin()
 	if txn.Error != nil {
 		return txn.Error
@@ -688,7 +688,7 @@ func UpdateProfileService(db *gorm.DB, id string, data *model.EmployeePayload) e
 		"refUserFName":       data.FirstName,
 		"refUserLName":       data.LastName,
 		"refUserDesignation": data.Designation,
-		"refUserStatus":      map[bool]string{true: "Active", false: "In Active"}[data.RefUserStatus],
+		// "refUserStatus":      map[bool]string{true: "Active", false: "In Active"}[data.RefUserStatus],
 		"refUserBranchId":    data.RefUserBranchId,
 		"updatedAt":          timestamp,
 		"updatedBy":          updatedBy,
