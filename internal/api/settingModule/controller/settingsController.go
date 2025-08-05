@@ -49,25 +49,10 @@ func CreateCategoryController() gin.HandlerFunc {
 
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
-		var roleId int
-		switch v := roleIdValue.(type) {
-		case int:
-			roleId = v
-		case int64:
-			roleId = int(v)
-		case float64:
-			roleId = int(v)
-		case string:
-			parsed, err := strconv.Atoi(v)
-			if err != nil {
-				log.Error("Role ID is a string but not a valid integer")
-				c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID string"})
-				return
-			}
-			roleId = parsed
-		default:
-			log.Error("Unsupported role ID type")
-			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID type"})
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
 			return
 		}
 
@@ -159,10 +144,26 @@ func UpdateCategoryController() gin.HandlerFunc {
 		dbConnt, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
-		err := settingsService.UpdateCategoryService(dbConnt, &category)
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
 		if err != nil {
-			log.Error("Service error: " + err.Error())
-			if err.Error() == "duplicate value found" {
+			log.Error("Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		// Fetch role name from DB
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		fmt.Println("roleName", roleName)
+		if err != nil {
+			log.Error("Failed to get role name: " + err.Error())
+		} else {
+			log.Info("Role Name: " + roleName)
+		}
+
+		errH := settingsService.UpdateCategoryService(dbConnt, &category, roleName)
+		if errH != nil {
+			log.Error("Service error: " + errH.Error())
+			if errH.Error() == "duplicate value found" {
 				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
 			} else {
 				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update category"})
