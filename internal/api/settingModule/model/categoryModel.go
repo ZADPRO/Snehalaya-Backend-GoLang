@@ -1,5 +1,14 @@
 package model
 
+type TransactionHistory struct {
+	RefTransHisId   int    `json:"refTransHisId" gorm:"column:refTransHisId;primaryKey;autoIncrement"`
+	RefTransTypeId  int    `json:"refTransTypeId" gorm:"column:refTransTypeId"`
+	RefTransHisData string `json:"refTransHisData" gorm:"column:refTransHisData"`
+	CreatedAt       string `json:"createdAt" gorm:"column:createdAt"`
+	CreatedBy       string `json:"createdBy" gorm:"column:createdBy"`
+	RefUserId       int    `json:"refUserId" gorm:"column:refUserId"`
+}
+
 type Category struct {
 	RefCategoryId int    `json:"refCategoryId" gorm:"column:refCategoryid;primaryKey;autoIncrement"`
 	CategoryName  string `json:"categoryName" gorm:"column:categoryName"`
@@ -54,6 +63,53 @@ type Branch struct {
 	UpdatedAt     string `gorm:"column:updatedAt" json:"updatedAt"`
 	UpdatedBy     string `gorm:"column:updatedBy" json:"updatedBy"`
 	IsDelete      bool   `gorm:"column:isDelete" json:"isDelete"`
+}
+
+type BranchWithFloor struct {
+	RefBranchId   int    `gorm:"column:refBranchId;primaryKey;autoIncrement" json:"refBranchId"`
+	RefBranchName string `gorm:"column:refBranchName" json:"refBranchName"`
+	RefBranchCode string `gorm:"column:refBranchCode" json:"refBranchCode"`
+	RefLocation   string `gorm:"column:refLocation" json:"refLocation"`
+	RefMobile     string `gorm:"column:refMobile" json:"refMobile"`
+	RefEmail      string `gorm:"column:refEmail" json:"refEmail"`
+	IsMainBranch  bool   `gorm:"column:isMainBranch" json:"isMainBranch"`
+	IsActive      bool   `gorm:"column:isActive" json:"isActive"`
+	RefBTId       int    `gorm:"column:refBTId" json:"refBTId"`
+	CreatedAt     string `gorm:"column:createdAt" json:"createdAt"`
+	CreatedBy     string `gorm:"column:createdBy" json:"createdBy"`
+	UpdatedAt     string `gorm:"column:updatedAt" json:"updatedAt"`
+	UpdatedBy     string `gorm:"column:updatedBy" json:"updatedBy"`
+	IsDelete      bool   `gorm:"column:isDelete" json:"isDelete"`
+	IsOnline      bool   `gorm:"column:isOnline" json:"isOnline"`
+	IsOffline     bool   `gorm:"column:isOffline" json:"isOffline"`
+}
+
+type Floors struct {
+	RefFloorId   int    `gorm:"column:refFloorId;primaryKey;autoIncrement" json:"refFloorId"`
+	RefBranchId  int    `gorm:"column:refBranchId" json:"refBranchId"`
+	RefFloorName string `gorm:"column:refFloorName" json:"refFloorName"`
+	RefFloorCode string `gorm:"column:refFloorCode" json:"refFloorCode"`
+	IsActive     string `gorm:"column:isActive" json:"isActive"`
+	CreatedAt    string `gorm:"column:createdAt" json:"createdAt"`
+	CreatedBy    string `gorm:"column:createdBy" json:"createdBy"`
+	UpdatedAt    string `gorm:"column:updatedAt" json:"updatedAt"`
+	UpdatedBy    string `gorm:"column:updatedBy" json:"updatedBy"`
+	IsDelete     bool   `gorm:"column:isDelete" json:"isDelete"`
+}
+
+type Sections struct {
+	RefSectionId     int    `gorm:"column:refSectionId;primaryKey;autoIncrement" json:"refSectionId"`
+	RefFloorId       int    `gorm:"column:refFloorId" json:"refFloorId"`
+	RefSectionName   string `gorm:"column:refSectionName" json:"refSectionName"`
+	RefSectionCode   string `gorm:"column:refSectionCode" json:"refSectionCode"`
+	RefCategoryId    int    `gorm:"column:refCategoryId" json:"refCategoryId"`
+	RefSubCategoryId int    `gorm:"column:refSubCategoryId" json:"refSubCategoryId"`
+	IsActive         string `gorm:"column:isActive" json:"isActive"`
+	CreatedAt        string `gorm:"column:createdAt" json:"createdAt"`
+	CreatedBy        string `gorm:"column:createdBy" json:"createdBy"`
+	UpdatedAt        string `gorm:"column:updatedAt" json:"updatedAt"`
+	UpdatedBy        string `gorm:"column:updatedBy" json:"updatedBy"`
+	IsDelete         bool   `gorm:"column:isDelete" json:"isDelete"`
 }
 
 type RoleType struct {
