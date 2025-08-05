@@ -408,35 +408,53 @@ func BulkDeleteCategoryController() gin.HandlerFunc {
 func CreateSubCategoryController() gin.HandlerFunc {
 	log := logger.InitLogger()
 	return func(c *gin.Context) {
-		log.Info("Create SubCategory Controller invoked")
+		log.Info("\n\n\n🚀 Create SubCategory Controller invoked")
 
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
 		branchIdValue, branchIdExists := c.Get("branchId")
 
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
 		if !idExists || !roleIdExists || !branchIdExists {
-			// Handle error: ID is missing from context (e.g., middleware didn't set it)
-			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+			log.Warn("❌ Missing context data")
+			c.JSON(http.StatusUnauthorized, gin.H{
 				"status":  false,
 				"message": "User ID, RoleID, Branch ID not found in request context.",
 			})
-			return // Stop processing
+			return
 		}
 
-		var subCateogry model.SubCategory
-		if err := c.ShouldBindJSON(&subCateogry); err != nil {
-			log.Error("Invalid request body : " + err.Error())
+		var subCategory model.SubCategory
+		if err := c.ShouldBindJSON(&subCategory); err != nil {
+			log.Error("📦 Invalid request body: " + err.Error())
 			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
 			return
 		}
+		log.Infof("📦 Request Body: %+v", subCategory)
 
 		dbConnt, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
-		if err := settingsService.CreateSubCategoryService(dbConnt, &subCateogry); err != nil {
-			log.Error("Service error: " + err.Error())
+		// ✅ Extract role name
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Error("🔍 Failed to get role name: " + err.Error())
+		} else {
+			log.Infof("✅ Role Name resolved: %s", roleName)
+		}
+
+		if err := settingsService.CreateSubCategoryService(dbConnt, &subCategory, roleName); err != nil {
+			log.Error("❌ Service Error: " + err.Error())
 			if err.Error() == "duplicate value found" {
 				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
 			} else {
@@ -445,8 +463,14 @@ func CreateSubCategoryController() gin.HandlerFunc {
 			return
 		}
 
-		log.Info("Sub category created successfully")
-		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Sub category created", "token": token})
+		log.Info("✅ SubCategory created successfully")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Sub category created successfully",
+			"token":   token,
+		})
 	}
 }
 
@@ -483,33 +507,51 @@ func GetAllSubCategoriesController() gin.HandlerFunc {
 func UpdateSubCategoryController() gin.HandlerFunc {
 	log := logger.InitLogger()
 	return func(c *gin.Context) {
-		log.Info("Update SubCategory Controller invoked")
+		log.Info("\n\n\n🚀 Update SubCategory Controller invoked")
 
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
 		branchIdValue, branchIdExists := c.Get("branchId")
 
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
 		if !idExists || !roleIdExists || !branchIdExists {
-			// Handle error: ID is missing from context (e.g., middleware didn't set it)
-			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+			log.Warn("❌ Missing context data")
+			c.JSON(http.StatusUnauthorized, gin.H{
 				"status":  false,
 				"message": "User ID, RoleID, Branch ID not found in request context.",
 			})
-			return // Stop processing
+			return
 		}
 
 		var sub model.SubCategory
 		if err := c.ShouldBindJSON(&sub); err != nil {
-			log.Error("Invalid request body: " + err.Error())
+			log.Error("📦 Invalid request body: " + err.Error())
 			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
 			return
 		}
+		log.Infof("📥 Input SubCategory: %+v", sub)
 
 		dbConnt, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
-		if err := settingsService.UpdateSubCategoryService(dbConnt, &sub); err != nil {
-			log.Error("Service error: " + err.Error())
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Error("🔍 Failed to get role name: " + err.Error())
+			roleName = "Unknown"
+		} else {
+			log.Infof("👤 Role Name resolved: %s", roleName)
+		}
+
+		if err := settingsService.UpdateSubCategoryService(dbConnt, &sub, roleName); err != nil {
+			log.Error("❌ Service error: " + err.Error())
 			if err.Error() == "duplicate value found" {
 				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
 			} else {
@@ -520,8 +562,14 @@ func UpdateSubCategoryController() gin.HandlerFunc {
 
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
-		log.Info("Sub category updated successfully")
-		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Sub category updated", "token": token})
+		log.Info("✅ SubCategory updated successfully")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Sub category updated",
+			"token":   token,
+		})
 	}
 }
 
@@ -557,6 +605,88 @@ func DeleteSubCategoryController() gin.HandlerFunc {
 
 		log.Info("Sub category deleted successfully")
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Sub category deleted", "token": token})
+	}
+}
+
+func BulkDeleteSubCategoryController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n📥 BulkDeleteSubCategoryController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values (id/roleId/branchId)")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var request struct {
+			SubCategoryIDs []int `json:"subCategoriesId"`
+		}
+
+		if err := c.ShouldBindJSON(&request); err != nil || len(request.SubCategoryIDs) == 0 {
+			log.Error("❌ Invalid request body or empty subcategory IDs")
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid subcategory IDs",
+			})
+			return
+		}
+
+		log.Infof("📦 Bulk delete request: subCategoryIds=%v", request.SubCategoryIDs)
+
+		dbConnt, sqlDB := db.InitDB()
+		defer func() {
+			if err := sqlDB.Close(); err != nil {
+				log.Error("❌ Failed to close DB connection: " + err.Error())
+			} else {
+				log.Info("✅ DB connection closed")
+			}
+		}()
+
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Error("🔍 Failed to get role name: " + err.Error())
+		} else {
+			log.Infof("✅ Role Name resolved: %s", roleName)
+		}
+
+		err = settingsService.BulkDeleteSubCategoriesService(dbConnt, request.SubCategoryIDs, roleName)
+		if err != nil {
+			log.Error("❌ Service error during bulk subcategory delete: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to delete subcategories",
+			})
+			return
+		}
+
+		log.Infof("✅ SubCategories soft deleted successfully: %v\n\n", request.SubCategoryIDs)
+		log.Info("\n=================================================================\n")
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Subcategories deleted successfully",
+			"token":   token,
+		})
 	}
 }
 
