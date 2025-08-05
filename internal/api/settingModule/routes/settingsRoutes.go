@@ -8,7 +8,7 @@ import (
 
 func SettingsAdminRoutes(router *gin.Engine) {
 	route := router.Group("/api/v1/admin/settings")
-
+	routev2 := router.Group("/api/v2/admin/settings")
 	// CATEGORIES ROUTES
 	route.POST("/categories", accesstoken.JWTMiddleware(), settingsController.CreateCategoryController())
 	route.GET("/categories", accesstoken.JWTMiddleware(), settingsController.GetAllCategoriesController())
@@ -21,12 +21,16 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route.GET("/subcategories", accesstoken.JWTMiddleware(), settingsController.GetAllSubCategoriesController())
 	route.PUT("/subcategories", accesstoken.JWTMiddleware(), settingsController.UpdateSubCategoryController())
 	route.DELETE("/subcategories/:id", accesstoken.JWTMiddleware(), settingsController.DeleteSubCategoryController())
+	route.DELETE("/subcategories", accesstoken.JWTMiddleware(), settingsController.BulkDeleteSubCategoryController())
 
 	// BRANCHES ROUTES
 	route.POST("/branches", accesstoken.JWTMiddleware(), settingsController.CreateBranchController())
 	route.GET("/branches", accesstoken.JWTMiddleware(), settingsController.GetAllBranchesController())
 	route.PUT("/branches", accesstoken.JWTMiddleware(), settingsController.UpdateBranchController())
 	route.DELETE("/branches/:id", accesstoken.JWTMiddleware(), settingsController.DeleteBranchController())
+
+	// BRANCH WITH FLOOR ROUTES
+	routev2.POST("/branches", accesstoken.JWTMiddleware(), settingsController.CreateNewBranchWithFloorController())
 
 	// USER ROLES
 
@@ -42,5 +46,5 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route.DELETE("/employees/:id", accesstoken.JWTMiddleware(), settingsController.DeleteEmployeeController())
 	route.GET("/getEmployees", accesstoken.JWTMiddleware(), settingsController.GetEmployeeController())
 	route.PUT("/updateEmployeeProfile", accesstoken.JWTMiddleware(), settingsController.UpdateProfileController())
-	
+
 }

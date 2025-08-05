@@ -7,18 +7,18 @@ import (
 	"os"
 
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/adminLogin/routes"
+	configMinio "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/helper/config"
 	productRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/routes"
+	minioConfig "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/productsImageUpload/config"
 	imageUploadRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/productsImageUpload/routes"
 	profileModuleRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/profileModule/routes"
 	purchaseOrderRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/routes"
 	settingsRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/routes"
 	supplierRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/supplierModule/routes"
-	minioConfig "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/productsImageUpload/config"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-
 )
 
 func main() {
@@ -35,6 +35,7 @@ func main() {
 
 	//MIN IO INIT
 	minioConfig.InitMinio()
+	configMinio.InitMinio()
 
 	// CORS CONFIG
 	r.Use(cors.New(cors.Config{

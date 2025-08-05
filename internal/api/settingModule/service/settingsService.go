@@ -16,54 +16,78 @@ import (
 
 // CATEGORIES SERVICE
 
-func CreateCategoryService(db *gorm.DB, category *model.Category) error {
+func CreateCategoryService(db *gorm.DB, category *model.Category, roleName string) error {
 	log := logger.InitLogger()
+	log.Info("🛠️ CreateCategoryService invoked")
 
-	// Check for existing category with same name or code and isDelete = false
+	log.Infof("📥 Input Category: %+v", category)
+	log.Infof("👤 Created By (roleName): %s", roleName)
+
 	var existing model.Category
-
-	fmt.Println("category", category)
-
 	err := db.Table("Categories").
 		Where(`("categoryName" = ? OR "categoryCode" = ?) AND "isDelete" = ?`, category.CategoryName, category.CategoryCode, false).
 		First(&existing).Error
 
 	if err == nil {
-		log.Error("Duplicate category found")
+		log.Warn("⚠️ Duplicate category found")
 		return fmt.Errorf("duplicate value found")
 	} else if err != gorm.ErrRecordNotFound {
-		log.Error("DB error while checking for duplicates: " + err.Error())
+		log.Error("❌ DB error during duplicate check: " + err.Error())
 		return err
 	}
 
-	// Proceed with creation
+	log.Info("✅ No duplicates found, proceeding to create category")
+
 	category.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
-	category.CreatedBy = "Admin"
+	category.CreatedBy = roleName
+
 	err = db.Table("Categories").Create(category).Error
-	if err == nil {
-		_ = transactionLogger.LogTransaction(db, 1, "Admin", 2, "Category Created: "+category.CategoryName)
+	if err != nil {
+		log.Error("❌ Failed to insert category: " + err.Error())
+		return err
 	}
-	return err
+
+	log.Info("✅ Category created in DB, logging transaction...")
+
+	// Transaction Logging
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 2, "Category Created: "+category.CategoryName)
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	return nil
 }
 
 func GetAllCategoriesService(db *gorm.DB) []model.Category {
 	log := logger.InitLogger()
+	log.Info("🛠️ GetAllCategoriesService invoked")
+
 	var categories []model.Category
 
 	err := db.Table("Categories").
 		Where(`"isDelete" = ?`, false).
+		Order(`"refCategoryid" ASC`).
 		Find(&categories).Error
 
 	if err != nil {
-		log.Error("Get all categories failed: " + err.Error())
+		log.Error("❌ Failed to fetch categories: " + err.Error())
+	} else {
+		log.Infof("✅ Retrieved %d categories from DB", len(categories))
 	}
+
 	return categories
 }
 
-func UpdateCategoryService(db *gorm.DB, category *model.Category) error {
+func UpdateCategoryService(db *gorm.DB, category *model.Category, roleName string) error {
 	log := logger.InitLogger()
+	log.Info("🛠️ UpdateCategoryService invoked")
 
-	// Check for duplicate (excluding current ID)
+	log.Infof("📥 Category to update: %+v", category)
+	log.Infof("👤 Updated By: %s", roleName)
+
+	// Check for duplicate category (excluding the current one)
 	var existing model.Category
 	err := db.Table("Categories").
 		Where(`("categoryName" = ? OR "categoryCode" = ?) AND "refCategoryid" != ? AND "isDelete" = ?`,
@@ -71,63 +95,129 @@ func UpdateCategoryService(db *gorm.DB, category *model.Category) error {
 		First(&existing).Error
 
 	if err == nil {
-		log.Error("Duplicate category found")
+		log.Warn("⚠️ Duplicate category found")
 		return fmt.Errorf("duplicate value found")
 	} else if err != gorm.ErrRecordNotFound {
-		log.Error("DB error while checking for duplicates: " + err.Error())
+		log.Error("❌ DB error while checking for duplicates: " + err.Error())
 		return err
 	}
 
-	// Proceed with update
-	category.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
-	category.UpdatedBy = "Admin"
-	_ = transactionLogger.LogTransaction(db, 1, "Admin", 3, "Category Updated: "+category.CategoryName)
+	log.Info("✅ No duplicates found, proceeding with update")
 
-	return db.Table("Categories").
+	// Update metadata
+	category.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
+	category.UpdatedBy = roleName
+
+	// Log transaction
+	log.Info("📝 Logging transaction for category update")
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 3, "Category Updated: "+category.CategoryName)
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	// Perform DB update
+	log.Info("🔧 Updating category in DB")
+	err = db.Table("Categories").
 		Where(`"refCategoryid" = ?`, category.RefCategoryId).
 		Updates(map[string]interface{}{
 			"categoryName": category.CategoryName,
 			"categoryCode": category.CategoryCode,
 			"isActive":     category.IsActive,
 		}).Error
+
+	if err != nil {
+		log.Error("❌ Category update failed: " + err.Error())
+	} else {
+		log.Info("✅ Category updated in DB")
+	}
+
+	return err
 }
 
 func GetSubcategoriesByCategory(db *gorm.DB, categoryId string) ([]model.SubCategory, error) {
+	log := logger.InitLogger()
+	log.Infof("🔎 Fetching subcategories for category ID: %s", categoryId)
+
 	var subcategories []model.SubCategory
 	err := db.Table("SubCategories").
 		Where(`"refCategoryId" = ? AND "isDelete" = false`, categoryId).
 		Find(&subcategories).Error
+
+	if err != nil {
+		log.Error("❌ Failed to fetch subcategories: " + err.Error())
+	} else {
+		log.Infof("📊 Found %d subcategories", len(subcategories))
+	}
 
 	return subcategories, err
 }
 
 func DeleteCategoryService(db *gorm.DB, id string) error {
 	log := logger.InitLogger()
-	log.Info("Soft deleting category with ID: ", id)
+	log.Infof("🗑️ Soft deleting category with ID: %s", id)
 
-	return db.Table("Categories").
+	err := db.Table("Categories").
 		Where(`"refCategoryid" = ?`, id).
 		Updates(map[string]interface{}{
 			"isDelete":  true,
 			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
-			"updatedBy": "Admin",
+			"updatedBy": "Admin", // Optional: you can pass dynamic roleName if needed
 		}).Error
+
+	if err != nil {
+		log.Error("❌ Failed to soft delete category: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ Category soft deleted successfully")
+
+	// Log transaction
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 4, "Category Deleted: "+id)
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	return nil
 }
 
-func BulkDeleteCategoriesService(db *gorm.DB, ids []int) error {
+func BulkDeleteCategoriesService(db *gorm.DB, ids []int, roleName string) error {
 	log := logger.InitLogger()
-	log.Info("Soft deleting categories with IDs: ", ids)
+	log.Infof("🗑️ Soft deleting categories with IDs: %v", ids)
 
-	return db.Table("Categories").
+	err := db.Table("Categories").
 		Where(`"refCategoryid" IN (?)`, ids).
 		Updates(map[string]interface{}{
 			"isDelete":  true,
 			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
-			"updatedBy": "Admin",
+			"updatedBy": roleName,
 		}).Error
+
+	if err != nil {
+		log.Error("❌ Failed to soft delete categories: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ Bulk category soft delete successful")
+
+	// Optional: Log one transaction for all deletions
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 5, fmt.Sprintf("Bulk Category Delete: %v", ids))
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	return nil
 }
 
 func CheckSubcategoriesExistence(db *gorm.DB, categoryIDs []int) (map[string][]model.SubCategory, error) {
+	log := logger.InitLogger()
+	log.Infof("🔎 Checking subcategory existence for category IDs: %v", categoryIDs)
+
 	var subcategories []model.SubCategory
 	result := make(map[string][]model.SubCategory)
 
@@ -135,38 +225,64 @@ func CheckSubcategoriesExistence(db *gorm.DB, categoryIDs []int) (map[string][]m
 		Where(`"refCategoryId" IN (?) AND "isDelete" = false`, categoryIDs).
 		Find(&subcategories).Error
 	if err != nil {
+		log.Error("❌ Error fetching subcategories: " + err.Error())
 		return nil, err
 	}
 
 	for _, sub := range subcategories {
-		key := strconv.Itoa(sub.RefCategoryId) // ✅ Convert int to string
+		key := strconv.Itoa(sub.RefCategoryId)
 		result[key] = append(result[key], sub)
 	}
+
+	log.Infof("📊 Found %d subcategories under %d categories", len(subcategories), len(result))
 
 	return result, nil
 }
 
 // SUB CATEGORIES SERVICE
-func CreateSubCategoryService(db *gorm.DB, sub *model.SubCategory) error {
+func CreateSubCategoryService(db *gorm.DB, sub *model.SubCategory, roleName string) error {
 	log := logger.InitLogger()
-	log.Info("Inserting SubCategory: ", sub)
+	log.Info("🛠️ CreateSubCategoryService invoked")
+
+	log.Infof("📥 Input SubCategory: %+v", sub)
+	log.Infof("👤 Created By (roleName): %s", roleName)
 
 	var existing model.SubCategory
 	err := db.Table("SubCategories").
-		Where(`("subCategoryName" = ? OR "subCategoryCode" = ?) AND "isDelete" = false`, sub.SubCategoryName, sub.SubCategoryCode).
+		Where(`("subCategoryName" = ? OR "subCategoryCode" = ?) AND "isDelete" = false`,
+			sub.SubCategoryName, sub.SubCategoryCode).
 		First(&existing).Error
 
 	if err == nil {
-		log.Error("Duplicate SubCategory found")
+		log.Warn("⚠️ Duplicate SubCategory found")
 		return fmt.Errorf("duplicate value found")
 	} else if err != gorm.ErrRecordNotFound {
-		log.Error("Error checking for duplicate: " + err.Error())
+		log.Error("❌ DB error during duplicate check: " + err.Error())
 		return err
 	}
 
+	log.Info("✅ No duplicates found, proceeding to create subcategory")
+
 	sub.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
-	sub.CreatedBy = "Admin"
-	return db.Table("SubCategories").Create(sub).Error
+	sub.CreatedBy = roleName
+
+	err = db.Table("SubCategories").Create(sub).Error
+	if err != nil {
+		log.Error("❌ Failed to insert subcategory: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ SubCategory created in DB, logging transaction...")
+
+	// ✅ Transaction Logging
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 2, "SubCategory Created: "+sub.SubCategoryName)
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	return nil
 }
 
 func GetAllSubCategoriesService(db *gorm.DB) []model.SubCategoryResponse {
@@ -197,9 +313,12 @@ func GetAllSubCategoriesService(db *gorm.DB) []model.SubCategoryResponse {
 	return subs
 }
 
-func UpdateSubCategoryService(db *gorm.DB, sub *model.SubCategory) error {
+func UpdateSubCategoryService(db *gorm.DB, sub *model.SubCategory, roleName string) error {
 	log := logger.InitLogger()
-	log.Info("Updating SubCategory ID: ", sub.RefSubCategoryId)
+	log.Infof("🛠️ UpdateSubCategoryService invoked for ID: %d", sub.RefSubCategoryId)
+
+	log.Infof("📥 Input SubCategory: %+v", sub)
+	log.Infof("👤 Updated By (roleName): %s", roleName)
 
 	// 1. Check for duplicates
 	var existing model.SubCategory
@@ -209,21 +328,21 @@ func UpdateSubCategoryService(db *gorm.DB, sub *model.SubCategory) error {
 		First(&existing).Error
 
 	if err == nil {
-		log.Error("Duplicate SubCategory found")
+		log.Warn("⚠️ Duplicate SubCategory found")
 		return fmt.Errorf("duplicate value found")
 	} else if err != gorm.ErrRecordNotFound {
-		log.Error("Error checking for duplicate: " + err.Error())
+		log.Error("❌ Error checking for duplicate: " + err.Error())
 		return err
 	}
 
-	// 2. Update
+	// 2. Perform update
 	updateData := map[string]interface{}{
 		"subCategoryName": sub.SubCategoryName,
 		"subCategoryCode": sub.SubCategoryCode,
 		"refCategoryId":   sub.RefCategoryId,
 		"isActive":        sub.IsActive,
 		"updatedAt":       time.Now().Format("2006-01-02 15:04:05"),
-		"updatedBY":       "Admin",
+		"updatedBY":       roleName,
 	}
 
 	err = db.Table("SubCategories").
@@ -231,10 +350,11 @@ func UpdateSubCategoryService(db *gorm.DB, sub *model.SubCategory) error {
 		Updates(updateData).Error
 
 	if err != nil {
-		log.Error("Failed to update subcategory: " + err.Error())
+		log.Error("❌ Failed to update SubCategory: " + err.Error())
 		return err
 	}
 
+	log.Info("✅ SubCategory updated in DB successfully")
 	return nil
 }
 
@@ -249,6 +369,36 @@ func DeleteSubCategoryService(db *gorm.DB, id string) error {
 			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
 			"updatedBY": "Admin",
 		}).Error
+}
+
+func BulkDeleteSubCategoriesService(db *gorm.DB, ids []int, roleName string) error {
+	log := logger.InitLogger()
+	log.Infof("🗑️ Soft deleting subcategories with IDs: %v", ids)
+
+	err := db.Table("SubCategories").
+		Where(`"refSubCategoryId" IN (?)`, ids).
+		Updates(map[string]interface{}{
+			"isDelete":  true,
+			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
+			"updatedBY": roleName,
+		}).Error
+
+	if err != nil {
+		log.Error("❌ Failed to soft delete subcategories: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ Bulk subcategory soft delete successful")
+
+	// Log one transaction entry (optional)
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 6, fmt.Sprintf("Bulk SubCategory Delete: %v", ids))
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	return nil
 }
 
 // BRANCHES SERVICE
@@ -282,7 +432,10 @@ func GetAllBranchesService(db *gorm.DB) []model.Branch {
 	log := logger.InitLogger()
 	var branches []model.Branch
 
-	err := db.Table(`"Branches"`).Where(`"isDelete" = false`).Find(&branches).Error
+	err := db.Table(`"Branches"`).
+		Where(`"isDelete" = false`).
+		Order(`"refBranchId" ASC`).
+		Find(&branches).Error
 	if err != nil {
 		log.Error("Failed to fetch branches: " + err.Error())
 	}
@@ -334,6 +487,91 @@ func DeleteBranchService(db *gorm.DB, id string) error {
 			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
 			"updatedBy": "Admin",
 		}).Error
+}
+
+// BRANCH SERVICE WITH FLOOR
+func CreateNewBranchWithFloor(db *gorm.DB, branch *model.BranchWithFloor, floors []struct {
+	FloorName string
+	FloorCode string
+	Sections  []struct {
+		CategoryId       int
+		RefSubCategoryId int
+		SectionName      string
+		SectionCode      string
+	}
+}, userId int) error {
+	log := logger.InitLogger()
+	log.Info("Creating new branch: " + branch.RefBranchName)
+
+	// Duplicate check
+	var existing model.BranchWithFloor
+	err := db.Table(`"Branches"`).Where(`("refBranchName" = ? OR "refBranchCode" = ?) AND "isDelete" = false`, branch.RefBranchName, branch.RefBranchCode).First(&existing).Error
+	if err == nil {
+		return fmt.Errorf("duplicate branch found")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	tx := db.Begin()
+	branch.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
+	branch.CreatedBy = "Admin"
+	if err := tx.Table(`"Branches"`).Create(branch).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	log.Info("Inserted Branch ID: %d", branch.RefBranchId)
+
+	// Insert floors and sections
+	for _, floor := range floors {
+		floorModel := model.Floors{
+			RefBranchId:  branch.RefBranchId,
+			RefFloorName: floor.FloorName,
+			RefFloorCode: floor.FloorCode,
+			IsActive:     "true",
+			CreatedAt:    time.Now().Format("2006-01-02 15:04:05"),
+			CreatedBy:    "Admin",
+		}
+		if err := tx.Table(`"Floors"`).Create(&floorModel).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+		log.Info("Inserted Floor ID: %d", floorModel.RefFloorId)
+
+		for _, section := range floor.Sections {
+			sectionModel := model.Sections{
+				RefFloorId:       floorModel.RefFloorId,
+				RefSectionName:   section.SectionName,
+				RefSectionCode:   section.SectionCode,
+				RefCategoryId:    section.CategoryId,
+				RefSubCategoryId: section.RefSubCategoryId,
+				IsActive:         "true",
+				CreatedAt:        time.Now().Format("2006-01-02 15:04:05"),
+				CreatedBy:        "Admin",
+			}
+			if err := tx.Table(`"Sections"`).Create(&sectionModel).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+			log.Info("Inserted Section ID: %d", sectionModel.RefSectionId)
+		}
+	}
+
+	// Insert Transaction History
+	history := model.TransactionHistory{
+		RefTransTypeId:  1,
+		RefTransHisData: fmt.Sprintf("Branch Created: %s with Floors and Sections", branch.RefBranchName),
+		CreatedAt:       time.Now().Format("2006-01-02 15:04:05"),
+		CreatedBy:       "Admin",
+		RefUserId:       userId,
+	}
+	if err := tx.Table(`"TransactionHistory"`).Create(&history).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	log.Info("Inserted transaction history for Branch ID: %d", branch.RefBranchId)
+	tx.Commit()
+	return nil
 }
 
 // EMPLOYEE - SELECT ROLE TYPE
@@ -689,9 +927,9 @@ func UpdateProfileService(db *gorm.DB, id string, data *model.ProfilePayload) er
 		"refUserLName":       data.LastName,
 		"refUserDesignation": data.Designation,
 		// "refUserStatus":      map[bool]string{true: "Active", false: "In Active"}[data.RefUserStatus],
-		"refUserBranchId":    data.RefUserBranchId,
-		"updatedAt":          timestamp,
-		"updatedBy":          updatedBy,
+		"refUserBranchId": data.RefUserBranchId,
+		"updatedAt":       timestamp,
+		"updatedBy":       updatedBy,
 	}
 	if err := txn.Table(`"Users"`).Where(`"refUserId" = ?`, id).Updates(userUpdate).Error; err != nil {
 		txn.Rollback()
