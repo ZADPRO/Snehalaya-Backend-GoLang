@@ -402,49 +402,73 @@ func BulkDeleteSubCategoriesService(db *gorm.DB, ids []int, roleName string) err
 }
 
 // BRANCHES SERVICE
-func CreateBranchService(db *gorm.DB, branch *model.Branch) error {
+func CreateBranchService(db *gorm.DB, branch *model.Branch, roleName string) error {
 	log := logger.InitLogger()
-	log.Info("Inserting Branch: ", branch)
+	log.Info("🛠️ CreateBranchService invoked")
+
+	log.Infof("📥 Input Branch: %+v", branch)
+	log.Infof("👤 Created By (roleName): %s", roleName)
 
 	var existing model.Branch
-
-	// Ensure exact column names match your PostgreSQL schema
 	err := db.Table(`"Branches"`).
 		Where(`("refBranchName" = ? OR "refBranchCode" = ?) AND "isDelete" = false`, branch.RefBranchName, branch.RefBranchCode).
 		First(&existing).Error
 
 	if err == nil {
-		log.Error("Duplicate Branch found")
+		log.Warn("⚠️ Duplicate branch found")
 		return fmt.Errorf("duplicate value found")
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		log.Error("Error checking for duplicate: " + err.Error())
+		log.Error("❌ DB error during duplicate check: " + err.Error())
 		return err
 	}
 
-	branch.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
-	branch.CreatedBy = "Admin"
+	log.Info("✅ No duplicates found, proceeding to create branch")
 
-	// Always use quoted table name to preserve case
-	return db.Table(`"Branches"`).Create(branch).Error
+	branch.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
+	branch.CreatedBy = roleName
+
+	err = db.Table(`"Branches"`).Create(branch).Error
+	if err != nil {
+		log.Error("❌ Failed to insert branch: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ Branch created in DB, logging transaction...")
+
+	// Transaction Logging (TransTypeID = 4 for branch)
+	transErr := transactionLogger.LogTransaction(db, 1, roleName, 4, "Branch Created: "+branch.RefBranchName)
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	return nil
 }
 
-func GetAllBranchesService(db *gorm.DB) []model.Branch {
+func GetAllBranchesService(db *gorm.DB) ([]model.Branch, error) {
 	log := logger.InitLogger()
 	var branches []model.Branch
+
+	log.Info("🔎 Fetching all active branches sorted by refBranchId ASC")
 
 	err := db.Table(`"Branches"`).
 		Where(`"isDelete" = false`).
 		Order(`"refBranchId" ASC`).
 		Find(&branches).Error
+
 	if err != nil {
-		log.Error("Failed to fetch branches: " + err.Error())
+		log.Error("❌ Failed to fetch branches: " + err.Error())
+		return nil, err
 	}
-	return branches
+
+	log.Infof("✅ %d branches fetched successfully", len(branches))
+	return branches, nil
 }
 
-func UpdateBranchService(db *gorm.DB, branch *model.Branch) error {
+func UpdateBranchService(db *gorm.DB, branch *model.Branch, roleName string) error {
 	log := logger.InitLogger()
-	log.Info("Updating Branch ID: ", branch.RefBranchId)
+	log.Infof("🔧 UpdateBranchService invoked for Branch ID: %d", branch.RefBranchId)
 
 	var existing model.Branch
 	err := db.Table(`"Branches"`).
@@ -453,10 +477,10 @@ func UpdateBranchService(db *gorm.DB, branch *model.Branch) error {
 		First(&existing).Error
 
 	if err == nil {
-		log.Error("Duplicate Branch found")
+		log.Warn("⚠️ Duplicate branch name or code found")
 		return fmt.Errorf("duplicate value found")
 	} else if err != gorm.ErrRecordNotFound {
-		log.Error("Error checking for duplicate: " + err.Error())
+		log.Error("❌ Error checking for duplicates: " + err.Error())
 		return err
 	}
 
@@ -470,23 +494,70 @@ func UpdateBranchService(db *gorm.DB, branch *model.Branch) error {
 		"isMainBranch":  branch.IsMainBranch,
 		"isActive":      branch.IsActive,
 		"updatedAt":     time.Now().Format("2006-01-02 15:04:05"),
-		"updatedBy":     "Admin",
+		"updatedBy":     roleName,
 	}
 
-	return db.Table(`"Branches"`).Where(`"refBranchId" = ?`, branch.RefBranchId).Updates(updateData).Error
+	err = db.Table(`"Branches"`).
+		Where(`"refBranchId" = ?`, branch.RefBranchId).
+		Updates(updateData).Error
+
+	if err != nil {
+		log.Error("❌ Failed to update branch: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ Branch updated successfully in DB")
+
+	// Log transaction history
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 3, fmt.Sprintf("Branch Updated: %s", branch.RefBranchName))
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	return nil
 }
 
-func DeleteBranchService(db *gorm.DB, id string) error {
+func DeleteBranchService(db *gorm.DB, id string, roleName string) error {
 	log := logger.InitLogger()
-	log.Info("Soft deleting Branch with ID: ", id)
+	log.Infof("🛠️ DeleteBranchService invoked for Branch ID: %s by %s", id, roleName)
 
-	return db.Table(`"Branches"`).
+	// Fetch the branch before deleting for logging purpose
+	var branch model.Branch
+	err := db.Table(`"Branches"`).
+		Where(`"refBranchId" = ? AND "isDelete" = false`, id).
+		First(&branch).Error
+	if err != nil {
+		log.Error("❌ Failed to fetch branch: " + err.Error())
+		return err
+	}
+
+	// Perform soft delete
+	err = db.Table(`"Branches"`).
 		Where(`"refBranchId" = ?`, id).
 		Updates(map[string]interface{}{
 			"isDelete":  true,
 			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
-			"updatedBy": "Admin",
+			"updatedBy": roleName,
 		}).Error
+
+	if err != nil {
+		log.Error("❌ Failed to soft delete branch: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ Branch soft deleted in DB")
+
+	// Transaction logging
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 4, fmt.Sprintf("Branch Deleted: %s", branch.RefBranchName))
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	return nil
 }
 
 // BRANCH SERVICE WITH FLOOR
