@@ -62,7 +62,7 @@ func GetAllCategoriesService(db *gorm.DB) []model.Category {
 	return categories
 }
 
-func UpdateCategoryService(db *gorm.DB, category *model.Category) error {
+func UpdateCategoryService(db *gorm.DB, category *model.Category, roleName string) error {
 	log := logger.InitLogger()
 
 	// Check for duplicate (excluding current ID)
@@ -82,7 +82,7 @@ func UpdateCategoryService(db *gorm.DB, category *model.Category) error {
 
 	// Proceed with update
 	category.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
-	category.UpdatedBy = "Admin"
+	category.UpdatedBy = roleName
 	_ = transactionLogger.LogTransaction(db, 1, "Admin", 3, "Category Updated: "+category.CategoryName)
 
 	return db.Table("Categories").
