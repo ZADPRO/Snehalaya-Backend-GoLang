@@ -9,6 +9,7 @@ import (
 	settingsService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/service"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
+	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
 )
@@ -17,20 +18,23 @@ import (
 
 func CreateCategoryController() gin.HandlerFunc {
 	log := logger.InitLogger()
+
 	return func(c *gin.Context) {
 		log.Info("Create Category Controller")
 
+		// Fetching user-related data from context
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
 		branchIdValue, branchIdExists := c.Get("branchId")
 
+		log.Info("\n\nRole ID Console", idValue, roleIdValue, branchIdValue)
+
 		if !idExists || !roleIdExists || !branchIdExists {
-			// Handle error: ID is missing from context (e.g., middleware didn't set it)
-			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+			c.JSON(http.StatusUnauthorized, gin.H{
 				"status":  false,
 				"message": "User ID, RoleID, Branch ID not found in request context.",
 			})
-			return // Stop processing
+			return
 		}
 
 		var category model.Category
@@ -45,7 +49,39 @@ func CreateCategoryController() gin.HandlerFunc {
 
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
-		err := settingsService.CreateCategoryService(dbConnt, &category)
+		var roleId int
+		switch v := roleIdValue.(type) {
+		case int:
+			roleId = v
+		case int64:
+			roleId = int(v)
+		case float64:
+			roleId = int(v)
+		case string:
+			parsed, err := strconv.Atoi(v)
+			if err != nil {
+				log.Error("Role ID is a string but not a valid integer")
+				c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID string"})
+				return
+			}
+			roleId = parsed
+		default:
+			log.Error("Unsupported role ID type")
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID type"})
+			return
+		}
+
+		// Fetch role name from DB
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		fmt.Println("roleName", roleName)
+		if err != nil {
+			log.Error("Failed to get role name: " + err.Error())
+		} else {
+			log.Info("Role Name: " + roleName)
+		}
+
+		// Create category
+		err = settingsService.CreateCategoryService(dbConnt, &category, roleName)
 		if err != nil {
 			log.Error("Service error: " + err.Error())
 			if err.Error() == "duplicate value found" {
@@ -56,8 +92,13 @@ func CreateCategoryController() gin.HandlerFunc {
 			return
 		}
 
+		// Success
 		log.Info("Category created successfully")
-		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Category created successfully", "token": token})
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Category created successfully",
+			"token":   token,
+		})
 	}
 }
 
@@ -547,6 +588,60 @@ func DeleteBranchController() gin.HandlerFunc {
 
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch deleted", "token": token})
+	}
+}
+
+// BRANCH WITH FLOOR CONTROLLER
+func CreateNewBranchWithFloorController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("\n\nCreate Branch Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var payload struct {
+			model.BranchWithFloor
+			Floors []struct {
+				FloorName string
+				FloorCode string
+				Sections  []struct {
+					CategoryId       int
+					RefSubCategoryId int
+					SectionName      string
+					SectionCode      string
+				}
+			}
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("Invalid payload: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid request payload"})
+			return
+		}
+
+		err := settingsService.CreateNewBranchWithFloor(dbConnt, &payload.BranchWithFloor, payload.Floors, idValue.(int))
+		if err != nil {
+			log.Error("Failed to create branch with floors: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		log.Info("Branch with Floors and Sections created successfully")
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch created with Floors and Sections", "token": token})
 	}
 }
 

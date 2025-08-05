@@ -16,13 +16,15 @@ import (
 
 // CATEGORIES SERVICE
 
-func CreateCategoryService(db *gorm.DB, category *model.Category) error {
+func CreateCategoryService(db *gorm.DB, category *model.Category, roleName string) error {
 	log := logger.InitLogger()
 
 	// Check for existing category with same name or code and isDelete = false
 	var existing model.Category
 
 	fmt.Println("category", category)
+
+	fmt.Println("\nroleName", roleName)
 
 	err := db.Table("Categories").
 		Where(`("categoryName" = ? OR "categoryCode" = ?) AND "isDelete" = ?`, category.CategoryName, category.CategoryCode, false).
@@ -38,7 +40,7 @@ func CreateCategoryService(db *gorm.DB, category *model.Category) error {
 
 	// Proceed with creation
 	category.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
-	category.CreatedBy = "Admin"
+	category.CreatedBy = roleName
 	err = db.Table("Categories").Create(category).Error
 	if err == nil {
 		_ = transactionLogger.LogTransaction(db, 1, "Admin", 2, "Category Created: "+category.CategoryName)
@@ -334,6 +336,91 @@ func DeleteBranchService(db *gorm.DB, id string) error {
 			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
 			"updatedBy": "Admin",
 		}).Error
+}
+
+// BRANCH SERVICE WITH FLOOR
+func CreateNewBranchWithFloor(db *gorm.DB, branch *model.BranchWithFloor, floors []struct {
+	FloorName string
+	FloorCode string
+	Sections  []struct {
+		CategoryId       int
+		RefSubCategoryId int
+		SectionName      string
+		SectionCode      string
+	}
+}, userId int) error {
+	log := logger.InitLogger()
+	log.Info("Creating new branch: " + branch.RefBranchName)
+
+	// Duplicate check
+	var existing model.BranchWithFloor
+	err := db.Table(`"Branches"`).Where(`("refBranchName" = ? OR "refBranchCode" = ?) AND "isDelete" = false`, branch.RefBranchName, branch.RefBranchCode).First(&existing).Error
+	if err == nil {
+		return fmt.Errorf("duplicate branch found")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	tx := db.Begin()
+	branch.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
+	branch.CreatedBy = "Admin"
+	if err := tx.Table(`"Branches"`).Create(branch).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	log.Info("Inserted Branch ID: %d", branch.RefBranchId)
+
+	// Insert floors and sections
+	for _, floor := range floors {
+		floorModel := model.Floors{
+			RefBranchId:  branch.RefBranchId,
+			RefFloorName: floor.FloorName,
+			RefFloorCode: floor.FloorCode,
+			IsActive:     "true",
+			CreatedAt:    time.Now().Format("2006-01-02 15:04:05"),
+			CreatedBy:    "Admin",
+		}
+		if err := tx.Table(`"Floors"`).Create(&floorModel).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+		log.Info("Inserted Floor ID: %d", floorModel.RefFloorId)
+
+		for _, section := range floor.Sections {
+			sectionModel := model.Sections{
+				RefFloorId:       floorModel.RefFloorId,
+				RefSectionName:   section.SectionName,
+				RefSectionCode:   section.SectionCode,
+				RefCategoryId:    section.CategoryId,
+				RefSubCategoryId: section.RefSubCategoryId,
+				IsActive:         "true",
+				CreatedAt:        time.Now().Format("2006-01-02 15:04:05"),
+				CreatedBy:        "Admin",
+			}
+			if err := tx.Table(`"Sections"`).Create(&sectionModel).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+			log.Info("Inserted Section ID: %d", sectionModel.RefSectionId)
+		}
+	}
+
+	// Insert Transaction History
+	history := model.TransactionHistory{
+		RefTransTypeId:  1,
+		RefTransHisData: fmt.Sprintf("Branch Created: %s with Floors and Sections", branch.RefBranchName),
+		CreatedAt:       time.Now().Format("2006-01-02 15:04:05"),
+		CreatedBy:       "Admin",
+		RefUserId:       userId,
+	}
+	if err := tx.Table(`"TransactionHistory"`).Create(&history).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	log.Info("Inserted transaction history for Branch ID: %d", branch.RefBranchId)
+	tx.Commit()
+	return nil
 }
 
 // EMPLOYEE - SELECT ROLE TYPE
@@ -689,9 +776,9 @@ func UpdateProfileService(db *gorm.DB, id string, data *model.ProfilePayload) er
 		"refUserLName":       data.LastName,
 		"refUserDesignation": data.Designation,
 		// "refUserStatus":      map[bool]string{true: "Active", false: "In Active"}[data.RefUserStatus],
-		"refUserBranchId":    data.RefUserBranchId,
-		"updatedAt":          timestamp,
-		"updatedBy":          updatedBy,
+		"refUserBranchId": data.RefUserBranchId,
+		"updatedAt":       timestamp,
+		"updatedBy":       updatedBy,
 	}
 	if err := txn.Table(`"Users"`).Where(`"refUserId" = ?`, id).Updates(userUpdate).Error; err != nil {
 		txn.Rollback()
