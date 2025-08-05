@@ -21,6 +21,7 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route.GET("/subcategories", accesstoken.JWTMiddleware(), settingsController.GetAllSubCategoriesController())
 	route.PUT("/subcategories", accesstoken.JWTMiddleware(), settingsController.UpdateSubCategoryController())
 	route.DELETE("/subcategories/:id", accesstoken.JWTMiddleware(), settingsController.DeleteSubCategoryController())
+	route.DELETE("/subcategories", accesstoken.JWTMiddleware(), settingsController.BulkDeleteSubCategoryController())
 
 	// BRANCHES ROUTES
 	route.POST("/branches", accesstoken.JWTMiddleware(), settingsController.CreateBranchController())

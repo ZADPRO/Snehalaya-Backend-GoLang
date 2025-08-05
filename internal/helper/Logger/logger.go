@@ -49,9 +49,12 @@ func InitLogger() *logrus.Logger {
 
 	now := time.Now()
 
-	logDir := "/var/log/SnehalayaaLogs"
-	os.MkdirAll(logDir, 0755)
-	filename := fmt.Sprintf("%s/Log_%02d_%02d_%d.log", logDir, now.Day(), now.Month(), now.Year())
+	// logDir := "/var/log/SnehalayaaLogs"
+	// os.MkdirAll(logDir, 0755)
+	// filename := fmt.Sprintf("%s/Log_%02d_%02d_%d.log", logDir, now.Day(), now.Month(), now.Year())
+
+	filename := fmt.Sprintf("Logs/Log_%02d_%02d_%d.log", now.Day(), now.Month(), now.Year())
+	os.MkdirAll("Logs", 0755)
 
 	//FILE ROTATION SETUP
 	logFile := &lumberjack.Logger{
