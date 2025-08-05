@@ -7,18 +7,26 @@ import (
 	supplierService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/supplierModule/service"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
+	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
+	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
 )
 
 // SUPPLIER CONTROLLER
 func CreateSupplierController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
 	return func(c *gin.Context) {
+		log.Info("\n\n🚀 Create Supplier Controller invoked")
 
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
 		branchIdValue, branchIdExists := c.Get("branchId")
 
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
 		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values (id/roleId/branchId)")
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"status":  false,
 				"message": "User ID, RoleID, Branch ID not found in request context.",
@@ -28,15 +36,35 @@ func CreateSupplierController() gin.HandlerFunc {
 
 		var supplier model.Supplier
 		if err := c.ShouldBindJSON(&supplier); err != nil {
+			log.Error("📦 Invalid request body: " + err.Error())
 			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
 			return
 		}
 
+		log.Infof("📦 Request Body: %+v", supplier)
+
 		dbConn, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
-		err := supplierService.CreateSupplier(dbConn, &supplier)
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
 		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConn, roleId)
+		if err != nil {
+			log.Error("🔍 Failed to get role name: " + err.Error())
+			roleName = "Unknown"
+		} else {
+			log.Infof("✅ Role Name resolved: %s", roleName)
+		}
+
+		err = supplierService.CreateSupplier(dbConn, &supplier, roleName)
+		if err != nil {
+			log.Error("❌ Service error: " + err.Error())
+
 			if err.Error() == "duplicate supplier with same name, company, and code already exists" {
 				c.JSON(http.StatusConflict, gin.H{
 					"status":  false,
@@ -51,8 +79,10 @@ func CreateSupplierController() gin.HandlerFunc {
 			return
 		}
 
-		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		log.Info("✅ Supplier created successfully")
+		log.Info("\n=================================================================\n")
 
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 		c.JSON(http.StatusOK, gin.H{
 			"status":  true,
 			"message": "Supplier created successfully",
@@ -62,19 +92,24 @@ func CreateSupplierController() gin.HandlerFunc {
 }
 
 func GetAllSuppliersController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
 	return func(c *gin.Context) {
+		log.Info("\n📦 GetAllSuppliersController invoked")
 
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
 		branchIdValue, branchIdExists := c.Get("branchId")
 
+		log.Infof("🔍 Context Data - id: %v, roleId: %v, branchId: %v", idValue, roleIdValue, branchIdValue)
+
 		if !idExists || !roleIdExists || !branchIdExists {
-			// Handle error: ID is missing from context (e.g., middleware didn't set it)
-			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+			log.Warn("❌ Missing user context data")
+			c.JSON(http.StatusUnauthorized, gin.H{
 				"status":  false,
-				"message": "User ID, RoleID, Branch ID not found in request context.",
+				"message": "User ID, RoleID, or Branch ID not found in request context.",
 			})
-			return // Stop processing
+			return
 		}
 
 		dbConn, sqlDB := db.InitDB()
@@ -82,111 +117,167 @@ func GetAllSuppliersController() gin.HandlerFunc {
 
 		suppliers, err := supplierService.GetAllSuppliers(dbConn)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to fetch suppliers"})
+			log.Error("❌ Failed to fetch suppliers: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to fetch suppliers",
+			})
 			return
 		}
 
+		log.Infof("✅ %d suppliers fetched successfully", len(suppliers))
+
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
-		c.JSON(http.StatusOK, gin.H{"status": true, "data": suppliers, "token": token})
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   suppliers,
+			"token":  token,
+		})
 	}
 }
 
 func GetSupplierByIdController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
 	return func(c *gin.Context) {
+		log.Info("📦 GetSupplierByIdController invoked")
 
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
 		branchIdValue, branchIdExists := c.Get("branchId")
 
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
 		if !idExists || !roleIdExists || !branchIdExists {
-			// Handle error: ID is missing from context (e.g., middleware didn't set it)
-			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+			log.Warn("❌ Missing user context data")
+			c.JSON(http.StatusUnauthorized, gin.H{
 				"status":  false,
-				"message": "User ID, RoleID, Branch ID not found in request context.",
+				"message": "User ID, RoleID, or Branch ID not found in request context.",
 			})
-			return // Stop processing
+			return
 		}
 
 		id := c.Param("id")
+		log.Infof("📌 Request Param: supplierId = %s", id)
 
 		dbConn, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
 		supplier, err := supplierService.GetSupplierById(dbConn, id)
 		if err != nil {
+			log.Warnf("❌ Supplier not found with ID: %s | Error: %v", id, err)
 			c.JSON(http.StatusNotFound, gin.H{"status": false, "message": "Supplier not found"})
 			return
 		}
+
+		log.Infof("✅ Supplier fetched successfully for ID: %s", id)
+
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
-		c.JSON(http.StatusOK, gin.H{"status": true, "data": supplier, "token": token})
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   supplier,
+			"token":  token,
+		})
 	}
 }
 
 func UpdateSupplierController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
 	return func(c *gin.Context) {
+		log.Info("🛠️ UpdateSupplierController invoked")
 
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
 		branchIdValue, branchIdExists := c.Get("branchId")
 
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
 		if !idExists || !roleIdExists || !branchIdExists {
-			// Handle error: ID is missing from context (e.g., middleware didn't set it)
-			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+			log.Warn("❌ Missing user context data")
+			c.JSON(http.StatusUnauthorized, gin.H{
 				"status":  false,
 				"message": "User ID, RoleID, Branch ID not found in request context.",
 			})
-			return // Stop processing
+			return
 		}
 
 		var supplier model.Supplier
 		if err := c.ShouldBindJSON(&supplier); err != nil {
+			log.Error("📦 Invalid request body: " + err.Error())
 			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
 			return
 		}
+		log.Infof("📦 Supplier Update Data: %+v", supplier)
 
 		dbConn, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
-		if err := supplierService.UpdateSupplier(dbConn, &supplier); err != nil {
+		err := supplierService.UpdateSupplier(dbConn, &supplier)
+		if err != nil {
+			log.Error("❌ Failed to update supplier: " + err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update supplier"})
 			return
 		}
 
-		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		log.Infof("✅ Supplier with ID %v updated successfully", supplier.SupplierID)
 
-		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Supplier updated successfully", "token": token})
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Supplier updated successfully",
+			"token":   token,
+		})
 	}
 }
 
 func DeleteSupplierController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
 	return func(c *gin.Context) {
+		log.Info("🗑️ DeleteSupplierController invoked")
+
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
 		branchIdValue, branchIdExists := c.Get("branchId")
 
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
 		if !idExists || !roleIdExists || !branchIdExists {
-			// Handle error: ID is missing from context (e.g., middleware didn't set it)
-			c.JSON(http.StatusUnauthorized, gin.H{ // Or StatusInternalServerError depending on why it's missing
+			log.Warn("❌ Missing user context data")
+			c.JSON(http.StatusUnauthorized, gin.H{
 				"status":  false,
 				"message": "User ID, RoleID, Branch ID not found in request context.",
 			})
-			return // Stop processing
+			return
 		}
 
 		id := c.Param("id")
+		log.Infof("🗂️ Supplier ID to delete: %s", id)
 
 		dbConn, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
-		if err := supplierService.DeleteSupplier(dbConn, id); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to delete supplier"})
+		err := supplierService.DeleteSupplier(dbConn, id)
+		if err != nil {
+			log.Error("❌ Failed to soft delete supplier: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to delete supplier",
+			})
 			return
 		}
 
+		log.Infof("✅ Supplier with ID %s deleted successfully", id)
+
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
-		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Supplier deleted successfully", "token": token})
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Supplier deleted successfully",
+			"token":   token,
+		})
 	}
 }
