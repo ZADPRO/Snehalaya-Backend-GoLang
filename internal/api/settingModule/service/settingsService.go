@@ -12,7 +12,6 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
-
 )
 
 // CATEGORIES SERVICE
@@ -675,7 +674,7 @@ func CreateAttributesService(db *gorm.DB, attribute *model.AttributesTable, role
 
 	var existing model.AttributesTable
 	err := db.Table("Attributes").
-		Where(`("attributeGroupId" = ? OR "attributeValue" = ?) AND "isDelete" = ?`, attribute.AttributeGroupId, attribute.AttributeValue, false).
+		Where(`("attributeGroupId" = ? AND "attributeValue" = ?) AND "isDelete" = ?`, attribute.AttributeGroupId, attribute.AttributeValue, false).
 		First(&existing).Error
 
 	if err == nil {
