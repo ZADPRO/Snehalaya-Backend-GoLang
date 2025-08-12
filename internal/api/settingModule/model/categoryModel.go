@@ -214,3 +214,20 @@ type AttributeGroupTable struct {
 	AttributeGroupId   int    `gorm:"primaryKey;autoIncrement;column:attributeGroupId"`
 	AttributeGroupName string `gorm:"column:attributeGroupName"`
 }
+
+type AttributesTable struct {
+	AttributeId      int    `gorm:"primaryKey;autoIncrement;column:attributeId"`
+	AttributeGroupId string `gorm:"column:attributeGroupId"`
+	AttributeKey     string `gorm:"column:attributeKey"`
+	AttributeValue   string `gorm:"column:attributeValue"`
+	CreatedAt        string `gorm:"column:createdAt"`
+	CreatedBy        string `gorm:"column:createdBy"`
+	UpdatedAt        string `gorm:"column:updatedAt"`
+	UpdatedBy        string `gorm:"column:updatedBy"`
+	IsDelete         bool   `gorm:"column:isDelete" json:"isDelete"`
+}
+
+type AttributeWithGroup struct {
+	AttributesTable
+	AttributeGroupName string `gorm:"column:attributeGroupName" json:"attributeGroupName"`
+}

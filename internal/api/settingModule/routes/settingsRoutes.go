@@ -38,6 +38,10 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	// ATTRIBUTES
 	// route.POST("/attributes", accesstoken.JWTMiddleware(), settingsController.CreateAttributeGroupController())
 	route.GET("/attributesDataType", accesstoken.JWTMiddleware(), settingsController.GetAttributeDataType())
+	route.POST("/attributes", accesstoken.JWTMiddleware(), settingsController.CreateAttributeGroupController())
+	route.GET("/attributes", accesstoken.JWTMiddleware(), settingsController.GetAttributeGroupController())
+	route.PUT("/attributes", accesstoken.JWTMiddleware(), settingsController.UpdateAttributeGroupController())
+	route.POST("/attributesHide", accesstoken.JWTMiddleware(), settingsController.DeleteAttributeGroupController())
 
 	// EMPLOYEES ROUTES
 	route.GET("/employeeRoleType", accesstoken.JWTMiddleware(), settingsController.GetEmployeeRoleType())

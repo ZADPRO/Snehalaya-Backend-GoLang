@@ -12,6 +12,7 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
+
 )
 
 // CATEGORIES CONTROLLER
@@ -981,11 +982,6 @@ func CreateNewBranchWithFloorController() gin.HandlerFunc {
 }
 
 // ATTRIBUTES
-// func CreateAttributeGroupController() gin.HandlerFunc {
-
-// }
-
-// CONTROLLER
 func GetAttributeDataType() gin.HandlerFunc {
 	log := logger.InitLogger()
 	return func(c *gin.Context) {
@@ -1025,6 +1021,295 @@ func GetAttributeDataType() gin.HandlerFunc {
 			"status": true,
 			"data":   attributes,
 			"token":  token,
+		})
+	}
+}
+
+func CreateAttributeGroupController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n\n🚀 Create Attribute Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context data")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var attributes model.AttributesTable
+		if err := c.ShouldBindJSON(&attributes); err != nil {
+			log.Error("📦 Invalid request body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+		log.Infof("📦 Request Body: %+v", attributes)
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Error("🔍 Failed to get role name: " + err.Error())
+		} else {
+			log.Infof("✅ Role Name resolved: %s", roleName)
+		}
+
+		err = settingsService.CreateAttributesService(dbConnt, &attributes, roleName)
+		if err != nil {
+			log.Error("❌ Service Error: " + err.Error())
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to create category"})
+			}
+			return
+		}
+
+		log.Info("✅ Attribute created successfully\n\n")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Category created successfully",
+			"token":   token,
+		})
+	}
+}
+
+func GetAttributeGroupController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n📥 GetAttributeGroupController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		categories := settingsService.GetAttributesService(dbConnt)
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   categories,
+			"token":  token,
+		})
+	}
+}
+
+func UpdateAttributeGroupController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n📥 UpdateCategoryController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values (id/roleId/branchId)")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var category model.Category
+		if err := c.ShouldBindJSON(&category); err != nil {
+			log.Error("❌ Invalid request body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+		log.Infof("📦 Request Body: %+v", category)
+
+		dbConnt, sqlDB := db.InitDB()
+		defer func() {
+			if err := sqlDB.Close(); err != nil {
+				log.Error("❌ Failed to close DB connection: " + err.Error())
+			} else {
+				log.Info("✅ DB connection closed")
+			}
+		}()
+
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Error("❌ Failed to get role name: " + err.Error())
+		} else {
+			log.Infof("👤 Role Name: %s", roleName)
+		}
+
+		log.Info("🛠️ Calling UpdateCategoryService")
+		errH := settingsService.UpdateCategoryService(dbConnt, &category, roleName)
+		if errH != nil {
+			log.Error("❌ Service error: " + errH.Error())
+			if errH.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update category"})
+			}
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("✅ Category updated successfully\n\n")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Category updated successfully",
+			"token":   token,
+		})
+	}
+}
+
+func DeleteAttributeGroupController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n📥 BulkDeleteCategoryController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values (id/roleId/branchId)")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var request struct {
+			CategoryIDs []int `json:"categoryIds"`
+			ForceDelete bool  `json:"forceDelete"`
+		}
+
+		if err := c.ShouldBindJSON(&request); err != nil || len(request.CategoryIDs) == 0 {
+			log.Error("❌ Invalid request body or empty category IDs")
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid category IDs",
+			})
+			return
+		}
+		log.Infof("📦 Bulk delete request: categoryIds=%v, forceDelete=%v", request.CategoryIDs, request.ForceDelete)
+
+		dbConnt, sqlDB := db.InitDB()
+		defer func() {
+			if err := sqlDB.Close(); err != nil {
+				log.Error("❌ Failed to close DB connection: " + err.Error())
+			} else {
+				log.Info("✅ DB connection closed")
+			}
+		}()
+
+		// Step 1: Check for subcategories
+		log.Info("🔎 Checking for subcategories in selected categories")
+		subcategoriesMap, err := settingsService.CheckSubcategoriesExistence(dbConnt, request.CategoryIDs)
+		if err != nil {
+			log.Error("❌ Error checking subcategories: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Internal server error",
+			})
+			return
+		}
+
+		if len(subcategoriesMap) > 0 && !request.ForceDelete {
+			log.Warn("⚠️ Some categories have subcategories. Confirmation needed before force delete.")
+			c.JSON(http.StatusConflict, gin.H{
+				"status":             false,
+				"message":            "Some categories contain subcategories. Deleting them will make subcategories idle.",
+				"subcategoriesMap":   subcategoriesMap,
+				"confirmationNeeded": true,
+			})
+			return
+		}
+
+		// Step 2: Perform soft delete
+		log.Info("🛠️ Proceeding to soft delete categories")
+
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Error("🔍 Failed to get role name: " + err.Error())
+		} else {
+			log.Infof("✅ Role Name resolved: %s", roleName)
+		}
+
+		err = settingsService.BulkDeleteCategoriesService(dbConnt, request.CategoryIDs, roleName)
+		if err != nil {
+			log.Error("❌ Service error during bulk delete: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to delete categories",
+			})
+			return
+		}
+
+		// Optional: you can loop and log each deletion
+		log.Infof("✅ Categories soft deleted successfully: %v\n\n", request.CategoryIDs)
+		log.Info("\n=================================================================\n")
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Categories deleted successfully",
+			"token":   token,
 		})
 	}
 }

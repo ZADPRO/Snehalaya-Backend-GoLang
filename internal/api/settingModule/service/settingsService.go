@@ -12,6 +12,7 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
+
 )
 
 // CATEGORIES SERVICE
@@ -646,7 +647,6 @@ func CreateNewBranchWithFloor(db *gorm.DB, branch *model.BranchWithFloor, floors
 }
 
 // ATTRIBUTES
-// SERVICE
 func GetAllAttributesService(db *gorm.DB) []model.AttributeGroupTable {
 	log := logger.InitLogger()
 	log.Info("🛠️ GetAllAttributesService invoked")
@@ -663,6 +663,84 @@ func GetAllAttributesService(db *gorm.DB) []model.AttributeGroupTable {
 	}
 
 	log.Infof("✅ Retrieved %d attributes from DB", len(attributes))
+	return attributes
+}
+
+func CreateAttributesService(db *gorm.DB, attribute *model.AttributesTable, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("🛠️ CreateAttributesService invoked")
+
+	log.Infof("📥 Input Attribute: %+v", attribute)
+	log.Infof("👤 Created By (roleName): %s", roleName)
+
+	var existing model.AttributesTable
+	err := db.Table("Attributes").
+		Where(`("attributeGroupId" = ? OR "attributeValue" = ?) AND "isDelete" = ?`, attribute.AttributeGroupId, attribute.AttributeValue, false).
+		First(&existing).Error
+
+	if err == nil {
+		log.Warn("⚠️ Duplicate Attribute found")
+		return fmt.Errorf("duplicate value found")
+	} else if err != gorm.ErrRecordNotFound {
+		log.Error("❌ DB error during duplicate check: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ No duplicates found, proceeding to create Attribute")
+
+	attribute.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
+	attribute.CreatedBy = roleName
+
+	err = db.Table("Attributes").Create(attribute).Error
+	if err != nil {
+		log.Error("❌ Failed to insert Attribute: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ Attributes created in DB, logging transaction...")
+
+	// Transaction Logging
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 2, "Attribute Created: "+attribute.AttributeValue)
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	return nil
+}
+
+func GetAttributesService(db *gorm.DB) []model.AttributeWithGroup {
+	log := logger.InitLogger()
+	log.Info("🛠️ GetAttributesService invoked")
+
+	query := `
+		SELECT 
+		a."attributeId",
+		a."attributeGroupId",
+		ag."attributeGroupName",
+		a."attributeKey",
+		a."attributeValue",
+		a."createdAt",
+		a."createdBy",
+		a."updatedAt",
+		a."updatedBy",
+		a."isDelete"
+	FROM "Attributes" AS a
+	LEFT JOIN "AttributeGroup" AS ag
+		ON a."attributeGroupId" = ag."attributeGroupId"
+	WHERE a."isDelete" = false
+	`
+
+	var attributes []model.AttributeWithGroup
+
+	err := db.Raw(query).Scan(&attributes).Error
+	if err != nil {
+		log.Error("❌ Failed to fetch Attributes: " + err.Error())
+		return []model.AttributeWithGroup{}
+	}
+
+	log.Infof("✅ Retrieved %d Attributes from DB", len(attributes))
 	return attributes
 }
 
