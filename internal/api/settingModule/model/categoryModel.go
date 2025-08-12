@@ -217,7 +217,7 @@ type AttributeGroupTable struct {
 
 type AttributesTable struct {
 	AttributeId      int    `gorm:"primaryKey;autoIncrement;column:attributeId"`
-	AttributeGroupId string `gorm:"column:attributeGroupId"`
+	AttributeGroupId int    `gorm:"column:attributeGroupId"`
 	AttributeKey     string `gorm:"column:attributeKey"`
 	AttributeValue   string `gorm:"column:attributeValue"`
 	CreatedAt        string `gorm:"column:createdAt"`
