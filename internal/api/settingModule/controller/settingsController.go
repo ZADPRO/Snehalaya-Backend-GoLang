@@ -985,6 +985,50 @@ func CreateNewBranchWithFloorController() gin.HandlerFunc {
 
 // }
 
+// CONTROLLER
+func GetAttributeDataType() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("\n\n📥 GetAttributeDataType invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values (id/roleId/branchId)")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer func() {
+			if err := sqlDB.Close(); err != nil {
+				log.Error("❌ Failed to close DB connection: " + err.Error())
+			} else {
+				log.Info("✅ DB connection closed")
+			}
+		}()
+
+		log.Info("📦 Fetching all attributes type from DB")
+		attributes := settingsService.GetAllAttributesService(dbConnt)
+		log.Infof("📊 Attributes fetched: count = %d", len(attributes))
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   attributes,
+			"token":  token,
+		})
+	}
+}
+
 // ADD NEW EMPLOYEE CONTROLLER
 func GetEmployeeRoleType() gin.HandlerFunc {
 	log := logger.InitLogger()

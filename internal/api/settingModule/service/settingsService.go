@@ -645,6 +645,27 @@ func CreateNewBranchWithFloor(db *gorm.DB, branch *model.BranchWithFloor, floors
 	return nil
 }
 
+// ATTRIBUTES
+// SERVICE
+func GetAllAttributesService(db *gorm.DB) []model.AttributeGroupTable {
+	log := logger.InitLogger()
+	log.Info("🛠️ GetAllAttributesService invoked")
+
+	var attributes []model.AttributeGroupTable
+
+	err := db.Table(`"AttributeGroup"`).
+		Order(`"attributeGroupId" ASC`).
+		Find(&attributes).Error
+
+	if err != nil {
+		log.Error("❌ Failed to fetch attributes: " + err.Error())
+		return []model.AttributeGroupTable{}
+	}
+
+	log.Infof("✅ Retrieved %d attributes from DB", len(attributes))
+	return attributes
+}
+
 // EMPLOYEE - SELECT ROLE TYPE
 
 func GetUserRoleTypeService(db *gorm.DB) []model.RoleType {

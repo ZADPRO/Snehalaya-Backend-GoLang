@@ -209,3 +209,8 @@ type EmployeeResponse struct {
 	Role       string `json:"role" gorm:"column:role"`
 	BranchName string `json:"branch" gorm:"column:branch"`
 }
+
+type AttributeGroupTable struct {
+	AttributeGroupId   int    `gorm:"primaryKey;autoIncrement;column:attributeGroupId"`
+	AttributeGroupName string `gorm:"column:attributeGroupName"`
+}
