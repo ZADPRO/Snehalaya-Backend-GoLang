@@ -4,6 +4,7 @@ import (
 	settingsController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
+
 )
 
 func SettingsAdminRoutes(router *gin.Engine) {
@@ -36,6 +37,7 @@ func SettingsAdminRoutes(router *gin.Engine) {
 
 	// ATTRIBUTES
 	// route.POST("/attributes", accesstoken.JWTMiddleware(), settingsController.CreateAttributeGroupController())
+	route.GET("/attributesDataType", accesstoken.JWTMiddleware(), settingsController.GetAttributeDataType())
 
 	// EMPLOYEES ROUTES
 	route.GET("/employeeRoleType", accesstoken.JWTMiddleware(), settingsController.GetEmployeeRoleType())
