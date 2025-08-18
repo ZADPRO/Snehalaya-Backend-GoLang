@@ -231,3 +231,38 @@ type AttributeWithGroup struct {
 	AttributesTable
 	AttributeGroupName string `gorm:"column:attributeGroupName" json:"attributeGroupName"`
 }
+
+
+type OverviewCards struct {
+	Categories int `json:"Categories" gorm:"column:Categories"`
+	Branches   int `json:"Branches" gorm:"column:Branches"`
+	Supplier   int `json:"Supplier" gorm:"column:Supplier"`
+	Attributes int `json:"Attributes" gorm:"column:Attributes"`
+}
+
+type LatestSupplier struct {
+	RefSupplierId   int    `json:"refSupplierId" gorm:"column:supplierId"`
+	RefSupplierName string `json:"refSupplierName" gorm:"column:supplierName"`
+	CreatedAt       string `json:"createdAt" gorm:"column:createdAt"`
+}
+
+type LatestCategory struct {
+	RefCategoryId   int    `json:"refCategoryId" gorm:"column:refCategoryid"`
+	RefCategoryName string `json:"refCategoryName" gorm:"column:categoryName"`
+	CreatedAt       string `json:"createdAt" gorm:"column:createdAt"`
+}
+
+
+type CategorySubCategoryCount struct {
+	Month         string `json:"month" gorm:"column:month" `
+	Categories    int    `json:"Categories" gorm:"column:Categories"`
+	SubCategories int    `json:"SubCategories" gorm:"column:SubCategories"`
+}
+
+
+type SettingsOverview struct {
+	Cards            OverviewCards               `json:"cards" `
+	LatestSuppliers  []LatestSupplier            `json:"latestSuppliers"`
+	LatestCategories []LatestCategory            `json:"latestCategories"`
+	MonthlyCounts    []CategorySubCategoryCount  `json:"monthlyCounts"`
+}

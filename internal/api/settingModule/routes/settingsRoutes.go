@@ -53,4 +53,7 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route.GET("/getEmployees", accesstoken.JWTMiddleware(), settingsController.GetEmployeeController())
 	route.PUT("/updateEmployeeProfile", accesstoken.JWTMiddleware(), settingsController.UpdateProfileController())
 
+	// overView
+	route.GET("/overview", accesstoken.JWTMiddleware(), settingsController.GetSettingsOverview())
+
 }

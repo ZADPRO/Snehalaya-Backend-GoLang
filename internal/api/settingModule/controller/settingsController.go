@@ -1541,3 +1541,23 @@ func UpdateProfileController() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Profile updated successfully"})
 	}
 }
+
+
+func GetSettingsOverview() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		data, err := settingsService.FetchSettingsOverview(dbConn)
+		
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   data,
+		})
+	}
+}
