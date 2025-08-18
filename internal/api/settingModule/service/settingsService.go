@@ -1134,3 +1134,59 @@ func UpdateProfileService(db *gorm.DB, id string, data *model.ProfilePayload) er
 
 	return txn.Commit().Error
 }
+
+
+func FetchSettingsOverview(db *gorm.DB) (model.SettingsOverview, error) {
+	var overview model.SettingsOverview
+
+	// Cards query
+	cardsQuery := `
+	SELECT
+	  (SELECT COUNT(*) FROM public."Categories" WHERE "isDelete" = 'false' AND DATE_TRUNC('month', "createdAt"::Date) = DATE_TRUNC('month', CURRENT_DATE)) AS "Categories",
+	  (SELECT COUNT(*) FROM public."Branches" WHERE "isDelete" = 'false' AND DATE_TRUNC('month', "createdAt"::date) = DATE_TRUNC('month', CURRENT_DATE)) AS "Branches",
+	  (SELECT COUNT(*) FROM public."Supplier" WHERE "isDelete" = 'false' AND DATE_TRUNC('month', "createdAt"::date) = DATE_TRUNC('month', CURRENT_DATE)) AS "Supplier",
+	  (SELECT COUNT(*) FROM public."Attributes" WHERE "isDelete" = 'false' AND DATE_TRUNC('month', "createdAt"::date) = DATE_TRUNC('month', CURRENT_DATE)) AS "Attributes";
+	`
+
+	if err := db.Raw(cardsQuery).Scan(&overview.Cards).Error; err != nil {
+		return overview, fmt.Errorf("error fetching cards: %v", err)
+	}
+
+	// Latest suppliers
+	if err := db.Raw(`SELECT * FROM public."Supplier" WHERE "isDelete" IS false ORDER BY "createdAt" DESC LIMIT 5`).Scan(&overview.LatestSuppliers).Error; err != nil {
+		return overview, fmt.Errorf("error fetching latest suppliers: %v", err)
+	}
+
+	// Latest categories
+	if err := db.Raw(`SELECT * FROM public."Categories" WHERE "isDelete" IS false ORDER BY "createdAt" DESC LIMIT 5`).Scan(&overview.LatestCategories).Error; err != nil {
+		return overview, fmt.Errorf("error fetching latest categories: %v", err)
+	}
+
+	// Monthly category & subcategory counts
+	monthlyQuery := `
+	WITH category_counts AS (
+		SELECT TO_CHAR("createdAt"::date, 'MM-YYYY') AS month, COUNT(*) AS "Categories"
+		FROM public."Categories"
+		WHERE "isDelete" = false
+		GROUP BY TO_CHAR("createdAt"::date, 'MM-YYYY')
+	),
+	subcategory_counts AS (
+		SELECT TO_CHAR("createdAt"::date, 'MM-YYYY') AS month, COUNT(*) AS "SubCategories"
+		FROM public."SubCategories"
+		WHERE "isDelete" = false
+		GROUP BY TO_CHAR("createdAt"::date, 'MM-YYYY')
+	)
+	SELECT COALESCE(c.month, s.month) AS month,
+	       COALESCE(c."Categories", 0) AS "Categories",
+	       COALESCE(s."SubCategories", 0) AS "SubCategories"
+	FROM category_counts c
+	FULL OUTER JOIN subcategory_counts s ON c.month = s.month
+	ORDER BY month;
+	`
+
+	if err := db.Raw(monthlyQuery).Scan(&overview.MonthlyCounts).Error; err != nil {
+		return overview, fmt.Errorf("error fetching monthly counts: %v", err)
+	}
+
+	return overview, nil
+}
