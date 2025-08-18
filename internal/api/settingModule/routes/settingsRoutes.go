@@ -4,6 +4,7 @@ import (
 	settingsController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
+
 )
 
 func SettingsAdminRoutes(router *gin.Engine) {
@@ -36,6 +37,11 @@ func SettingsAdminRoutes(router *gin.Engine) {
 
 	// ATTRIBUTES
 	// route.POST("/attributes", accesstoken.JWTMiddleware(), settingsController.CreateAttributeGroupController())
+	route.GET("/attributesDataType", accesstoken.JWTMiddleware(), settingsController.GetAttributeDataType())
+	route.POST("/attributes", accesstoken.JWTMiddleware(), settingsController.CreateAttributeGroupController())
+	route.GET("/attributes", accesstoken.JWTMiddleware(), settingsController.GetAttributeGroupController())
+	route.PUT("/attributes", accesstoken.JWTMiddleware(), settingsController.UpdateAttributeGroupController())
+	route.POST("/attributesHide", accesstoken.JWTMiddleware(), settingsController.DeleteAttributeGroupController())
 
 	// EMPLOYEES ROUTES
 	route.GET("/employeeRoleType", accesstoken.JWTMiddleware(), settingsController.GetEmployeeRoleType())
@@ -46,5 +52,8 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route.DELETE("/employees/:id", accesstoken.JWTMiddleware(), settingsController.DeleteEmployeeController())
 	route.GET("/getEmployees", accesstoken.JWTMiddleware(), settingsController.GetEmployeeController())
 	route.PUT("/updateEmployeeProfile", accesstoken.JWTMiddleware(), settingsController.UpdateProfileController())
+
+	// overView
+	route.GET("/overview", accesstoken.JWTMiddleware(), settingsController.GetSettingsOverview())
 
 }

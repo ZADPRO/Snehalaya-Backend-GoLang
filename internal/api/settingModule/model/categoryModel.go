@@ -209,3 +209,60 @@ type EmployeeResponse struct {
 	Role       string `json:"role" gorm:"column:role"`
 	BranchName string `json:"branch" gorm:"column:branch"`
 }
+
+type AttributeGroupTable struct {
+	AttributeGroupId   int    `gorm:"primaryKey;autoIncrement;column:attributeGroupId"`
+	AttributeGroupName string `gorm:"column:attributeGroupName"`
+}
+
+type AttributesTable struct {
+	AttributeId      int    `gorm:"primaryKey;autoIncrement;column:attributeId"`
+	AttributeGroupId int    `gorm:"column:attributeGroupId"`
+	AttributeKey     string `gorm:"column:attributeKey"`
+	AttributeValue   string `gorm:"column:attributeValue"`
+	CreatedAt        string `gorm:"column:createdAt"`
+	CreatedBy        string `gorm:"column:createdBy"`
+	UpdatedAt        string `gorm:"column:updatedAt"`
+	UpdatedBy        string `gorm:"column:updatedBy"`
+	IsDelete         bool   `gorm:"column:isDelete" json:"isDelete"`
+}
+
+type AttributeWithGroup struct {
+	AttributesTable
+	AttributeGroupName string `gorm:"column:attributeGroupName" json:"attributeGroupName"`
+}
+
+
+type OverviewCards struct {
+	Categories int `json:"Categories" gorm:"column:Categories"`
+	Branches   int `json:"Branches" gorm:"column:Branches"`
+	Supplier   int `json:"Supplier" gorm:"column:Supplier"`
+	Attributes int `json:"Attributes" gorm:"column:Attributes"`
+}
+
+type LatestSupplier struct {
+	RefSupplierId   int    `json:"refSupplierId" gorm:"column:supplierId"`
+	RefSupplierName string `json:"refSupplierName" gorm:"column:supplierName"`
+	CreatedAt       string `json:"createdAt" gorm:"column:createdAt"`
+}
+
+type LatestCategory struct {
+	RefCategoryId   int    `json:"refCategoryId" gorm:"column:refCategoryid"`
+	RefCategoryName string `json:"refCategoryName" gorm:"column:categoryName"`
+	CreatedAt       string `json:"createdAt" gorm:"column:createdAt"`
+}
+
+
+type CategorySubCategoryCount struct {
+	Month         string `json:"month" gorm:"column:month" `
+	Categories    int    `json:"Categories" gorm:"column:Categories"`
+	SubCategories int    `json:"SubCategories" gorm:"column:SubCategories"`
+}
+
+
+type SettingsOverview struct {
+	Cards            OverviewCards               `json:"cards" `
+	LatestSuppliers  []LatestSupplier            `json:"latestSuppliers"`
+	LatestCategories []LatestCategory            `json:"latestCategories"`
+	MonthlyCounts    []CategorySubCategoryCount  `json:"monthlyCounts"`
+}

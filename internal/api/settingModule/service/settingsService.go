@@ -645,6 +645,104 @@ func CreateNewBranchWithFloor(db *gorm.DB, branch *model.BranchWithFloor, floors
 	return nil
 }
 
+// ATTRIBUTES
+func GetAllAttributesService(db *gorm.DB) []model.AttributeGroupTable {
+	log := logger.InitLogger()
+	log.Info("🛠️ GetAllAttributesService invoked")
+
+	var attributes []model.AttributeGroupTable
+
+	err := db.Table(`"AttributeGroup"`).
+		Order(`"attributeGroupId" ASC`).
+		Find(&attributes).Error
+
+	if err != nil {
+		log.Error("❌ Failed to fetch attributes: " + err.Error())
+		return []model.AttributeGroupTable{}
+	}
+
+	log.Infof("✅ Retrieved %d attributes from DB", len(attributes))
+	return attributes
+}
+
+func CreateAttributesService(db *gorm.DB, attribute *model.AttributesTable, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("🛠️ CreateAttributesService invoked")
+
+	log.Infof("📥 Input Attribute: %+v", attribute)
+	log.Infof("👤 Created By (roleName): %s", roleName)
+
+	var existing model.AttributesTable
+	err := db.Table("Attributes").
+		Where(`("attributeGroupId" = ? AND "attributeValue" = ?) AND "isDelete" = ?`, attribute.AttributeGroupId, attribute.AttributeValue, false).
+		First(&existing).Error
+
+	if err == nil {
+		log.Warn("⚠️ Duplicate Attribute found")
+		return fmt.Errorf("duplicate value found")
+	} else if err != gorm.ErrRecordNotFound {
+		log.Error("❌ DB error during duplicate check: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ No duplicates found, proceeding to create Attribute")
+
+	attribute.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
+	attribute.CreatedBy = roleName
+
+	err = db.Table("Attributes").Create(attribute).Error
+	if err != nil {
+		log.Error("❌ Failed to insert Attribute: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ Attributes created in DB, logging transaction...")
+
+	// Transaction Logging
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 2, "Attribute Created: "+attribute.AttributeValue)
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	return nil
+}
+
+func GetAttributesService(db *gorm.DB) []model.AttributeWithGroup {
+	log := logger.InitLogger()
+	log.Info("🛠️ GetAttributesService invoked")
+
+	query := `
+		SELECT 
+		a."attributeId",
+		a."attributeGroupId",
+		ag."attributeGroupName",
+		a."attributeKey",
+		a."attributeValue",
+		a."createdAt",
+		a."createdBy",
+		a."updatedAt",
+		a."updatedBy",
+		a."isDelete"
+	FROM "Attributes" AS a
+	LEFT JOIN "AttributeGroup" AS ag
+		ON a."attributeGroupId" = ag."attributeGroupId"
+	WHERE a."isDelete" = false
+	`
+
+	var attributes []model.AttributeWithGroup
+
+	err := db.Raw(query).Scan(&attributes).Error
+	if err != nil {
+		log.Error("❌ Failed to fetch Attributes: " + err.Error())
+		return []model.AttributeWithGroup{}
+	}
+
+	log.Infof("✅ Retrieved %d Attributes from DB", len(attributes))
+	return attributes
+}
+
 // EMPLOYEE - SELECT ROLE TYPE
 
 func GetUserRoleTypeService(db *gorm.DB) []model.RoleType {
@@ -1035,4 +1133,60 @@ func UpdateProfileService(db *gorm.DB, id string, data *model.ProfilePayload) er
 	}
 
 	return txn.Commit().Error
+}
+
+
+func FetchSettingsOverview(db *gorm.DB) (model.SettingsOverview, error) {
+	var overview model.SettingsOverview
+
+	// Cards query
+	cardsQuery := `
+	SELECT
+	  (SELECT COUNT(*) FROM public."Categories" WHERE "isDelete" = 'false' AND DATE_TRUNC('month', "createdAt"::Date) = DATE_TRUNC('month', CURRENT_DATE)) AS "Categories",
+	  (SELECT COUNT(*) FROM public."Branches" WHERE "isDelete" = 'false' AND DATE_TRUNC('month', "createdAt"::date) = DATE_TRUNC('month', CURRENT_DATE)) AS "Branches",
+	  (SELECT COUNT(*) FROM public."Supplier" WHERE "isDelete" = 'false' AND DATE_TRUNC('month', "createdAt"::date) = DATE_TRUNC('month', CURRENT_DATE)) AS "Supplier",
+	  (SELECT COUNT(*) FROM public."Attributes" WHERE "isDelete" = 'false' AND DATE_TRUNC('month', "createdAt"::date) = DATE_TRUNC('month', CURRENT_DATE)) AS "Attributes";
+	`
+
+	if err := db.Raw(cardsQuery).Scan(&overview.Cards).Error; err != nil {
+		return overview, fmt.Errorf("error fetching cards: %v", err)
+	}
+
+	// Latest suppliers
+	if err := db.Raw(`SELECT * FROM public."Supplier" WHERE "isDelete" IS false ORDER BY "createdAt" DESC LIMIT 5`).Scan(&overview.LatestSuppliers).Error; err != nil {
+		return overview, fmt.Errorf("error fetching latest suppliers: %v", err)
+	}
+
+	// Latest categories
+	if err := db.Raw(`SELECT * FROM public."Categories" WHERE "isDelete" IS false ORDER BY "createdAt" DESC LIMIT 5`).Scan(&overview.LatestCategories).Error; err != nil {
+		return overview, fmt.Errorf("error fetching latest categories: %v", err)
+	}
+
+	// Monthly category & subcategory counts
+	monthlyQuery := `
+	WITH category_counts AS (
+		SELECT TO_CHAR("createdAt"::date, 'MM-YYYY') AS month, COUNT(*) AS "Categories"
+		FROM public."Categories"
+		WHERE "isDelete" = false
+		GROUP BY TO_CHAR("createdAt"::date, 'MM-YYYY')
+	),
+	subcategory_counts AS (
+		SELECT TO_CHAR("createdAt"::date, 'MM-YYYY') AS month, COUNT(*) AS "SubCategories"
+		FROM public."SubCategories"
+		WHERE "isDelete" = false
+		GROUP BY TO_CHAR("createdAt"::date, 'MM-YYYY')
+	)
+	SELECT COALESCE(c.month, s.month) AS month,
+	       COALESCE(c."Categories", 0) AS "Categories",
+	       COALESCE(s."SubCategories", 0) AS "SubCategories"
+	FROM category_counts c
+	FULL OUTER JOIN subcategory_counts s ON c.month = s.month
+	ORDER BY month;
+	`
+
+	if err := db.Raw(monthlyQuery).Scan(&overview.MonthlyCounts).Error; err != nil {
+		return overview, fmt.Errorf("error fetching monthly counts: %v", err)
+	}
+
+	return overview, nil
 }
