@@ -32,6 +32,7 @@ func SettingsAdminRoutes(router *gin.Engine) {
 
 	// BRANCH WITH FLOOR ROUTES
 	routev2.POST("/branches", accesstoken.JWTMiddleware(), settingsController.CreateNewBranchWithFloorController())
+	routev2.GET("/branches", accesstoken.JWTMiddleware(), settingsController.GetNewBranchWithFloorController())
 
 	// USER ROLES
 
