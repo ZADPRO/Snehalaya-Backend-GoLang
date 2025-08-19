@@ -1081,6 +1081,156 @@ func GetNewBranchWithFloorController() gin.HandlerFunc {
 	}
 }
 
+func GetNewBranchWithFloorWithIdController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("\n\n📥 GetNewBranchWithFloorController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v (%T), roleId=%v (%T), branchId=%v (%T)",
+			idValue, idValue, roleIdValue, roleIdValue, branchIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values (id/roleId/branchId)")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		// ✅ Safely convert branchIdValue to string
+		var branchIdStr string
+		switch v := branchIdValue.(type) {
+		case string:
+			branchIdStr = v
+		case float64:
+			branchIdStr = strconv.Itoa(int(v))
+		case int:
+			branchIdStr = strconv.Itoa(v)
+		default:
+			log.Error("❌ Unsupported type for branchId")
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid branchId type",
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer func() {
+			if err := sqlDB.Close(); err != nil {
+				log.Error("❌ Failed to close DB connection: " + err.Error())
+			} else {
+				log.Info("✅ DB connection closed")
+			}
+		}()
+
+		log.Info("📦 Fetching branch with floors from DB")
+		branch, err := settingsService.GetBranchWithFloorsService(dbConnt, branchIdStr)
+		if err != nil {
+			log.Error("❌ Failed to fetch branch: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to fetch branch details",
+			})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("✅ Sending response with branch floors\n\n")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   branch,
+			"token":  token,
+		})
+	}
+}
+
+func UpdateBranchWithFloorController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("\n\nUpdate Branch Controller invoked")
+
+		// Extract JWT context values
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		// Extract branchId from path param
+		paramId := c.Param("id")
+
+		var payload struct {
+			model.BranchWithFloor
+			Floors []struct {
+				FloorName string
+				FloorCode string
+				Sections  []struct {
+					CategoryId       int
+					RefSubCategoryId int
+					SectionName      string
+					SectionCode      string
+				}
+			}
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("Invalid payload: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid request payload"})
+			return
+		}
+
+		userId := 0
+		switch v := idValue.(type) {
+		case float64:
+			userId = int(v)
+		case int:
+			userId = v
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Invalid user ID type"})
+			return
+		}
+
+		// Extract role
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		fmt.Println("Role ID:", roleId)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		// Service call
+		err = settingsService.UpdateBranchWithFloor(dbConnt, paramId, &payload.BranchWithFloor, payload.Floors, userId)
+		if err != nil {
+			log.Error("Failed to update branch with floors: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		log.Info("Branch with Floors and Sections updated successfully")
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch updated with Floors and Sections", "token": token})
+	}
+}
+
 // ATTRIBUTES
 func GetAttributeDataType() gin.HandlerFunc {
 	log := logger.InitLogger()

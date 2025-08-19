@@ -12,7 +12,6 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
-
 )
 
 // CATEGORIES SERVICE
@@ -781,6 +780,91 @@ func GetBranchWithFloorsService(db *gorm.DB, branchIdStr string) ([]model.Branch
 
 	log.Infof("✅ Successfully built response with %d branches", len(response))
 	return response, nil
+}
+
+func UpdateBranchWithFloor(db *gorm.DB, branchId string, branch *model.BranchWithFloor, floors []struct {
+	FloorName string
+	FloorCode string
+	Sections  []struct {
+		CategoryId       int
+		RefSubCategoryId int
+		SectionName      string
+		SectionCode      string
+	}
+}, userId int) error {
+	log := logger.InitLogger()
+	log.Info("Updating branch: " + branch.RefBranchName)
+
+	tx := db.Begin()
+
+	// Update branch
+	branch.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
+	branch.UpdatedBy = "Admin"
+
+	if err := tx.Table(`"Branches"`).Where(`"refBranchId" = ? AND "isDelete" = false`, branchId).Updates(branch).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Clean old floors & sections before inserting new ones
+	if err := tx.Table(`"refSections"`).Where(`"refFloorId" IN (SELECT "refFloorId" FROM "refFloors" WHERE "refBranchId" = ?)`, branchId).Delete(nil).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Table(`"refFloors"`).Where(`"refBranchId" = ?`, branchId).Delete(nil).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Insert updated floors and sections
+	for _, floor := range floors {
+		floorModel := model.Floors{
+			RefBranchId:  branch.RefBranchId,
+			RefFloorName: floor.FloorName,
+			RefFloorCode: floor.FloorCode,
+			IsActive:     "true",
+			CreatedAt:    time.Now().Format("2006-01-02 15:04:05"),
+			CreatedBy:    "Admin",
+		}
+		if err := tx.Table(`"refFloors"`).Create(&floorModel).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		for _, section := range floor.Sections {
+			sectionModel := model.Sections{
+				RefFloorId:       floorModel.RefFloorId,
+				RefSectionName:   section.SectionName,
+				RefSectionCode:   section.SectionCode,
+				RefCategoryId:    section.CategoryId,
+				RefSubCategoryId: section.RefSubCategoryId,
+				IsActive:         "true",
+				CreatedAt:        time.Now().Format("2006-01-02 15:04:05"),
+				CreatedBy:        "Admin",
+			}
+			if err := tx.Table(`"refSections"`).Create(&sectionModel).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+
+	// Insert transaction history
+	history := model.TransactionHistory{
+		RefTransTypeId:  2, // update
+		RefTransHisData: fmt.Sprintf("Branch Updated: %s with Floors and Sections", branch.RefBranchName),
+		CreatedAt:       time.Now().Format("2006-01-02 15:04:05"),
+		CreatedBy:       "Admin",
+		RefUserId:       userId,
+	}
+	if err := tx.Table(`"TransactionHistory"`).Create(&history).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	tx.Commit()
+	log.Info("Branch update committed successfully")
+	return nil
 }
 
 // ATTRIBUTES
