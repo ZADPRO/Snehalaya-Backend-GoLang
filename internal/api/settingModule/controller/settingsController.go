@@ -968,7 +968,35 @@ func CreateNewBranchWithFloorController() gin.HandlerFunc {
 			return
 		}
 
-		err := settingsService.CreateNewBranchWithFloor(dbConnt, &payload.BranchWithFloor, payload.Floors, idValue.(int))
+		userId := 0
+		switch v := idValue.(type) {
+		case float64:
+			userId = int(v)
+		case int:
+			userId = v
+		default:
+			// handle unexpected type case
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Invalid user ID type"})
+			return
+		}
+
+		// ✅ Extract role name
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, errRole := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+
+		if errRole != nil {
+			log.Error("🔍 Failed to get role name: " + err.Error())
+		} else {
+			log.Infof("✅ Role Name resolved: %s", roleName)
+		}
+
+		err = settingsService.CreateNewBranchWithFloor(dbConnt, &payload.BranchWithFloor, payload.Floors, userId)
 		if err != nil {
 			log.Error("Failed to create branch with floors: " + err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
@@ -1209,7 +1237,7 @@ func DeleteAttributeGroupController() gin.HandlerFunc {
 	log := logger.InitLogger()
 
 	return func(c *gin.Context) {
-		log.Info("\n\n📥 BulkDeleteCategoryController invoked")
+		log.Info("\n\n📥 DeleteAttributeGroupController invoked")
 
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
@@ -1542,14 +1570,13 @@ func UpdateProfileController() gin.HandlerFunc {
 	}
 }
 
-
 func GetSettingsOverview() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		dbConn, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
 		data, err := settingsService.FetchSettingsOverview(dbConn)
-		
+
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
 			return

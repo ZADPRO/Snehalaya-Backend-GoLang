@@ -12,6 +12,7 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
+
 )
 
 // CATEGORIES SERVICE
@@ -602,7 +603,7 @@ func CreateNewBranchWithFloor(db *gorm.DB, branch *model.BranchWithFloor, floors
 			CreatedAt:    time.Now().Format("2006-01-02 15:04:05"),
 			CreatedBy:    "Admin",
 		}
-		if err := tx.Table(`"Floors"`).Create(&floorModel).Error; err != nil {
+		if err := tx.Table(`"refFloors"`).Create(&floorModel).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -619,7 +620,7 @@ func CreateNewBranchWithFloor(db *gorm.DB, branch *model.BranchWithFloor, floors
 				CreatedAt:        time.Now().Format("2006-01-02 15:04:05"),
 				CreatedBy:        "Admin",
 			}
-			if err := tx.Table(`"Sections"`).Create(&sectionModel).Error; err != nil {
+			if err := tx.Table(`"refSections"`).Create(&sectionModel).Error; err != nil {
 				tx.Rollback()
 				return err
 			}
@@ -1134,7 +1135,6 @@ func UpdateProfileService(db *gorm.DB, id string, data *model.ProfilePayload) er
 
 	return txn.Commit().Error
 }
-
 
 func FetchSettingsOverview(db *gorm.DB) (model.SettingsOverview, error) {
 	var overview model.SettingsOverview

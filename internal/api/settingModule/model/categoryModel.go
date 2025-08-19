@@ -66,7 +66,7 @@ type Branch struct {
 }
 
 type BranchWithFloor struct {
-	RefBranchId   int    `gorm:"column:refBranchId;primaryKey;autoIncrement" json:"refBranchId"`
+	RefBranchId   int    `gorm:"column:refBranchId;primaryKey;autoIncrement"`
 	RefBranchName string `gorm:"column:refBranchName" json:"refBranchName"`
 	RefBranchCode string `gorm:"column:refBranchCode" json:"refBranchCode"`
 	RefLocation   string `gorm:"column:refLocation" json:"refLocation"`
