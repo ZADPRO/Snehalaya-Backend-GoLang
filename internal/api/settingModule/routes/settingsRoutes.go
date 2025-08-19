@@ -35,6 +35,7 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	routev2.GET("/branches", accesstoken.JWTMiddleware(), settingsController.GetNewBranchWithFloorController())
 	routev2.GET("/branches/:id", accesstoken.JWTMiddleware(), settingsController.GetNewBranchWithFloorWithIdController())
 	routev2.PUT("/branches/:id", accesstoken.JWTMiddleware(), settingsController.UpdateBranchWithFloorController())
+	routev2.DELETE("/branches/:id", accesstoken.JWTMiddleware(), settingsController.SoftDeleteBranchController())
 
 	// USER ROLES
 

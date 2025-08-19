@@ -12,6 +12,7 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
+
 )
 
 // CATEGORIES SERVICE
@@ -864,6 +865,51 @@ func UpdateBranchWithFloor(db *gorm.DB, branchId string, branch *model.BranchWit
 
 	tx.Commit()
 	log.Info("Branch update committed successfully")
+	return nil
+}
+
+func SoftDeleteBranch(db *gorm.DB, branchId string, userId int) error {
+	log := logger.InitLogger()
+
+	tx := db.Begin()
+
+	// Check branch exists & not already deleted
+	var existing model.Branch
+	if err := tx.Table(`"Branches"`).Where(`"refBranchId" = ? AND "isDelete" = false`, branchId).First(&existing).Error; err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("branch not found or already deleted")
+		}
+		return err
+	}
+
+	// Soft delete update
+	updateData := map[string]interface{}{
+		"isDelete":  true,
+		"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
+		"updatedBy": "Admin",
+	}
+
+	if err := tx.Table(`"Branches"`).Where(`"refBranchId" = ?`, branchId).Updates(updateData).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Insert transaction history
+	history := model.TransactionHistory{
+		RefTransTypeId:  3, // 3 = delete
+		RefTransHisData: fmt.Sprintf("Branch Soft Deleted: %s", existing.RefBranchName),
+		CreatedAt:       time.Now().Format("2006-01-02 15:04:05"),
+		CreatedBy:       "Admin",
+		RefUserId:       userId,
+	}
+	if err := tx.Table(`"TransactionHistory"`).Create(&history).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	tx.Commit()
+	log.Info("Branch soft deleted successfully: %d", existing.RefBranchId)
 	return nil
 }
 
