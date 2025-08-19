@@ -1009,6 +1009,78 @@ func CreateNewBranchWithFloorController() gin.HandlerFunc {
 	}
 }
 
+func GetNewBranchWithFloorController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("\n\n📥 GetNewBranchWithFloorController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v (%T), roleId=%v (%T), branchId=%v (%T)",
+			idValue, idValue, roleIdValue, roleIdValue, branchIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values (id/roleId/branchId)")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		// ✅ Safely convert branchIdValue to string
+		var branchIdStr string
+		switch v := branchIdValue.(type) {
+		case string:
+			branchIdStr = v
+		case float64:
+			branchIdStr = strconv.Itoa(int(v))
+		case int:
+			branchIdStr = strconv.Itoa(v)
+		default:
+			log.Error("❌ Unsupported type for branchId")
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid branchId type",
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer func() {
+			if err := sqlDB.Close(); err != nil {
+				log.Error("❌ Failed to close DB connection: " + err.Error())
+			} else {
+				log.Info("✅ DB connection closed")
+			}
+		}()
+
+		log.Info("📦 Fetching branch with floors from DB")
+		branch, err := settingsService.GetBranchWithFloorsService(dbConnt, branchIdStr)
+		if err != nil {
+			log.Error("❌ Failed to fetch branch: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to fetch branch details",
+			})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("✅ Sending response with branch floors\n\n")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   branch,
+			"token":  token,
+		})
+	}
+}
+
 // ATTRIBUTES
 func GetAttributeDataType() gin.HandlerFunc {
 	log := logger.InitLogger()

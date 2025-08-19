@@ -112,6 +112,35 @@ type Sections struct {
 	IsDelete         bool   `gorm:"column:isDelete" json:"isDelete"`
 }
 
+type BranchResponse struct {
+	RefBranchId   int             `json:"refBranchId"`
+	RefBranchName string          `json:"refBranchName"`
+	RefBranchCode string          `json:"refBranchCode"`
+	RefLocation   string          `json:"refLocation"`
+	RefMobile     string          `json:"refMobile"`
+	RefEmail      string          `json:"refEmail"`
+	IsMainBranch  bool            `json:"isMainBranch"`
+	IsActive      bool            `json:"isActive"`
+	IsOnline      bool            `json:"isOnline"`
+	IsOffline     bool            `json:"isOffline"`
+	Floors        []FloorResponse `json:"floors"`
+}
+
+type FloorResponse struct {
+	RefFloorId int               `json:"refFloorId"`
+	FloorName  string            `json:"floorName"`
+	FloorCode  string            `json:"floorCode"`
+	Sections   []SectionResponse `json:"sections"`
+}
+
+type SectionResponse struct {
+	RefSectionId     int    `json:"refSectionId"`
+	SectionName      string `json:"sectionName"`
+	SectionCode      string `json:"sectionCode"`
+	CategoryId       int    `json:"categoryId"`
+	RefSubCategoryId int    `json:"refSubCategoryId"`
+}
+
 type RoleType struct {
 	RefRTId   int    `json:"refRTId" gorm:"column:refRTId"`
 	RefRTName string `json:"refRTName" gorm:"column:refRTName"`
@@ -232,7 +261,6 @@ type AttributeWithGroup struct {
 	AttributeGroupName string `gorm:"column:attributeGroupName" json:"attributeGroupName"`
 }
 
-
 type OverviewCards struct {
 	Categories int `json:"Categories" gorm:"column:Categories"`
 	Branches   int `json:"Branches" gorm:"column:Branches"`
@@ -252,17 +280,15 @@ type LatestCategory struct {
 	CreatedAt       string `json:"createdAt" gorm:"column:createdAt"`
 }
 
-
 type CategorySubCategoryCount struct {
 	Month         string `json:"month" gorm:"column:month" `
 	Categories    int    `json:"Categories" gorm:"column:Categories"`
 	SubCategories int    `json:"SubCategories" gorm:"column:SubCategories"`
 }
 
-
 type SettingsOverview struct {
-	Cards            OverviewCards               `json:"cards" `
-	LatestSuppliers  []LatestSupplier            `json:"latestSuppliers"`
-	LatestCategories []LatestCategory            `json:"latestCategories"`
-	MonthlyCounts    []CategorySubCategoryCount  `json:"monthlyCounts"`
+	Cards            OverviewCards              `json:"cards" `
+	LatestSuppliers  []LatestSupplier           `json:"latestSuppliers"`
+	LatestCategories []LatestCategory           `json:"latestCategories"`
+	MonthlyCounts    []CategorySubCategoryCount `json:"monthlyCounts"`
 }
