@@ -12,7 +12,6 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
-
 )
 
 // CATEGORIES CONTROLLER
@@ -1228,6 +1227,53 @@ func UpdateBranchWithFloorController() gin.HandlerFunc {
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 		log.Info("Branch with Floors and Sections updated successfully")
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch updated with Floors and Sections", "token": token})
+	}
+}
+
+func SoftDeleteBranchController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("\n\nSoft Delete Branch Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		// Extract branchId from path param
+		paramId := c.Param("id")
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		userId := 0
+		switch v := idValue.(type) {
+		case float64:
+			userId = int(v)
+		case int:
+			userId = v
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Invalid user ID type"})
+			return
+		}
+
+		err := settingsService.SoftDeleteBranch(dbConnt, paramId, userId)
+		if err != nil {
+			log.Error("Failed to soft delete branch: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		log.Info("Branch soft deleted successfully")
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch soft deleted successfully", "token": token})
 	}
 }
 
