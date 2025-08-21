@@ -6,8 +6,8 @@ type ProductsReportPayload struct {
 	SearchField      string `json:"searchField"`
 	PurchaseOrderId  int    `json:"purchaseOrderIdDropDown"`
 	SupplierId       int    `json:"supplierIdDropDown"`
-	PaginationOffset int    `json:"paginationOffset"`
-	PaginationLimit  int    `json:"paginationLimit"`
+	PaginationOffset string `json:"paginationOffset"`
+	PaginationLimit  string `json:"paginationLimit"`
 }
 
 type PurchaseOrderResponse struct {
