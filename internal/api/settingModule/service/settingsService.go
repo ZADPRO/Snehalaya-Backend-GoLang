@@ -982,20 +982,22 @@ func GetAttributesService(db *gorm.DB) []model.AttributeWithGroup {
 	log.Info("🛠️ GetAttributesService invoked")
 
 	query := `
-		SELECT 
-		a."attributeId",
-		a."attributeGroupId",
-		ag."attributeGroupName",
-		a."attributeKey",
-		a."attributeValue",
-		a."createdAt",
-		a."createdBy",
-		a."updatedAt",
-		a."updatedBy",
-		a."isDelete"
-	FROM "Attributes" AS a
-	LEFT JOIN "AttributeGroup" AS ag
-		ON a."attributeGroupId" = ag."attributeGroupId";
+		SELECT
+			a."attributeId",
+			a."attributeGroupId",
+			ag."attributeGroupName",
+			a."attributeKey",
+			a."attributeValue",
+			a."createdAt",
+			a."createdBy",
+			a."updatedAt",
+			a."updatedBy",
+			a."isDelete"
+		FROM
+			"Attributes" AS a
+		LEFT JOIN "AttributeGroup" AS ag ON a."attributeGroupId" = ag."attributeGroupId"
+		ORDER BY
+			a."attributeId";
 	`
 
 	var attributes []model.AttributeWithGroup

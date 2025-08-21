@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"syscall"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -14,59 +15,41 @@ import (
 type CustomFormatter struct{}
 
 func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
-	timestamp := time.Now()
-	hour := timestamp.Hour() & 12
-
-	if hour == 0 {
-		hour = 12
-	}
-	min := fmt.Sprintf("%02d", timestamp.Minute())
-	sec := fmt.Sprintf("%02d", timestamp.Second())
-
-	ampm := "AM"
-
-	if timestamp.Hour() >= 12 {
-		ampm = "PM"
-	}
-
-	date := timestamp.Format("01-01-2001") // MM-DD-YYYY
-
-	timeString := fmt.Sprintf("%s %d:%s:%s %s", date, hour, min, sec, ampm)
-	logLine := fmt.Sprintf("%s [%s]: %s \n", timeString, entry.Level.String(), entry.Message)
-
-	return []byte(logLine), nil
+	return []byte(fmt.Sprintf("%s [%s]: %s\n",
+		time.Now().Format("2006-01-02 15:04:05"),
+		entry.Level.String(),
+		entry.Message)), nil
 }
 
 // INIT LOGGER
 
 func InitLogger() *logrus.Logger {
 	log := logrus.New()
-	// SET CUSTOM FORMATTER
 	log.SetFormatter(new(CustomFormatter))
 
-	//LOG OUTPUT TO CONSOLE
-	log.SetOutput(os.Stdout)
-
 	now := time.Now()
-
-	// logDir := "/var/log/SnehalayaaLogs"
-	// os.MkdirAll(logDir, 0755)
-	// filename := fmt.Sprintf("%s/Log_%02d_%02d_%d.log", logDir, now.Day(), now.Month(), now.Year())
-
 	filename := fmt.Sprintf("Logs/Log_%02d_%02d_%d.log", now.Day(), now.Month(), now.Year())
 	os.MkdirAll("Logs", 0755)
 
-	//FILE ROTATION SETUP
+	// create file once with required permissions
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err == nil {
+		file.Close()
+		// explicitly set permissions
+		syscall.Chmod(filename, 0644)
+	}
+
+	// lumberjack rotation
 	logFile := &lumberjack.Logger{
 		Filename:   filename,
-		MaxSize:    10,
+		MaxSize:    10, // MB
 		MaxBackups: 0,
-		MaxAge:     7,
+		MaxAge:     7, // days
 		Compress:   true,
 	}
 
 	log.SetOutput(io.MultiWriter(os.Stdout, logFile))
-	log.SetLevel(logrus.InfoLevel) // MATCH INFO LEVEL
+	log.SetLevel(logrus.InfoLevel)
 
 	return log
 }
