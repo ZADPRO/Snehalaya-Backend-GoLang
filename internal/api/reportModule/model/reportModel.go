@@ -1,5 +1,11 @@
 package reportModel
 
+type ContextUser struct {
+	ID       interface{}
+	RoleID   interface{}
+	BranchID interface{}
+}
+
 type ProductsReportPayload struct {
 	FromDate         string `json:"fromDate"`
 	ToDate           string `json:"toDate"`
