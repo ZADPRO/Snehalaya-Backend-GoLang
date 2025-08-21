@@ -12,6 +12,7 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
+
 )
 
 // CATEGORIES SERVICE
@@ -602,7 +603,7 @@ func CreateNewBranchWithFloor(db *gorm.DB, branch *model.BranchWithFloor, floors
 			CreatedAt:    time.Now().Format("2006-01-02 15:04:05"),
 			CreatedBy:    "Admin",
 		}
-		if err := tx.Table(`"Floors"`).Create(&floorModel).Error; err != nil {
+		if err := tx.Table(`"refFloors"`).Create(&floorModel).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
@@ -619,7 +620,7 @@ func CreateNewBranchWithFloor(db *gorm.DB, branch *model.BranchWithFloor, floors
 				CreatedAt:        time.Now().Format("2006-01-02 15:04:05"),
 				CreatedBy:        "Admin",
 			}
-			if err := tx.Table(`"Sections"`).Create(&sectionModel).Error; err != nil {
+			if err := tx.Table(`"refSections"`).Create(&sectionModel).Error; err != nil {
 				tx.Rollback()
 				return err
 			}
@@ -642,6 +643,273 @@ func CreateNewBranchWithFloor(db *gorm.DB, branch *model.BranchWithFloor, floors
 
 	log.Info("Inserted transaction history for Branch ID: %d", branch.RefBranchId)
 	tx.Commit()
+	return nil
+}
+
+func GetBranchWithFloorsService(db *gorm.DB, branchIdStr string) ([]model.BranchResponse, error) {
+	log := logger.InitLogger()
+	log.Info("🛠️ GetBranchWithFloorsService invoked")
+
+	var rows []struct {
+		RefBranchId      int    `gorm:"column:ref_branch_id"`
+		RefBranchName    string `gorm:"column:ref_branch_name"`
+		RefBranchCode    string `gorm:"column:ref_branch_code"`
+		RefLocation      string `gorm:"column:ref_location"`
+		RefMobile        string `gorm:"column:ref_mobile"`
+		RefEmail         string `gorm:"column:ref_email"`
+		IsMainBranch     bool   `gorm:"column:is_main_branch"`
+		IsActive         bool   `gorm:"column:is_active"`
+		IsOnline         bool   `gorm:"column:is_online"`
+		IsOffline        bool   `gorm:"column:is_offline"`
+		RefFloorId       int    `gorm:"column:ref_floor_id"`
+		RefFloorName     string `gorm:"column:ref_floor_name"`
+		RefFloorCode     string `gorm:"column:ref_floor_code"`
+		RefSectionId     int    `gorm:"column:ref_section_id"`
+		RefSectionName   string `gorm:"column:ref_section_name"`
+		RefSectionCode   string `gorm:"column:ref_section_code"`
+		RefCategoryId    int    `gorm:"column:ref_category_id"`
+		RefSubCategoryId int    `gorm:"column:ref_sub_category_id"`
+	}
+
+	query := `
+		SELECT 
+			br."refBranchId"      AS "ref_branch_id",
+			br."refBranchName"    AS "ref_branch_name",
+			br."refBranchCode"    AS "ref_branch_code",
+			br."refLocation"      AS "ref_location",
+			br."refMobile"        AS "ref_mobile",
+			br."refEmail"         AS "ref_email",
+			br."isMainBranch"     AS "is_main_branch",
+			br."isActive"         AS "is_active",
+			br."isOnline"         AS "is_online",
+			br."isOffline"        AS "is_offline",
+			rf."refFloorId"       AS "ref_floor_id",
+			rf."refFloorName"     AS "ref_floor_name",
+			rf."refFloorCode"     AS "ref_floor_code",
+			rs."refSectionId"     AS "ref_section_id",
+			rs."refSectionName"   AS "ref_section_name",
+			rs."refSectionCode"   AS "ref_section_code",
+			rs."refCategoryId"    AS "ref_category_id",
+			rs."refSubCategoryId" AS "ref_sub_category_id"
+		FROM "Branches" br
+		LEFT JOIN "refFloors" rf ON br."refBranchId" = rf."refBranchId"
+		LEFT JOIN "refSections" rs ON rf."refFloorId" = rs."refFloorId"
+		ORDER BY br."refBranchId" ASC;
+	`
+
+	log.Infof("📦 Executing query to fetch branches with floors and sections")
+	err := db.Raw(query).Scan(&rows).Error
+
+	if err != nil {
+		log.Errorf("❌ DB query failed: %v", err)
+		return nil, err
+	}
+	log.Infof("✅ Query executed successfully, fetched %d rows", len(rows))
+
+	if len(rows) == 0 {
+		log.Warn("⚠️ No branches found")
+		return nil, errors.New("no branches found")
+	}
+
+	// Map to group branches
+	branchMap := make(map[int]*model.BranchResponse)
+	for _, r := range rows {
+		// Create branch if not exists
+		if _, exists := branchMap[r.RefBranchId]; !exists {
+			log.Infof("🏢 Creating new branch: ID=%d, Name=%s", r.RefBranchId, r.RefBranchName)
+			branch := model.BranchResponse{
+				RefBranchId:   r.RefBranchId,
+				RefBranchName: r.RefBranchName,
+				RefBranchCode: r.RefBranchCode,
+				RefLocation:   r.RefLocation,
+				RefMobile:     r.RefMobile,
+				RefEmail:      r.RefEmail,
+				IsMainBranch:  r.IsMainBranch,
+				IsActive:      r.IsActive,
+				IsOnline:      r.IsOnline,
+				IsOffline:     r.IsOffline,
+				Floors:        []model.FloorResponse{},
+			}
+			branchMap[r.RefBranchId] = &branch
+		}
+
+		branch := branchMap[r.RefBranchId]
+
+		// Add floor if exists
+		if r.RefFloorId != 0 {
+			var floor *model.FloorResponse
+			for i := range branch.Floors {
+				if branch.Floors[i].RefFloorId == r.RefFloorId {
+					floor = &branch.Floors[i]
+					break
+				}
+			}
+			if floor == nil {
+				log.Infof("  🏬 Adding new floor: ID=%d, Name=%s (BranchID=%d)", r.RefFloorId, r.RefFloorName, r.RefBranchId)
+				branch.Floors = append(branch.Floors, model.FloorResponse{
+					RefFloorId: r.RefFloorId,
+					FloorName:  r.RefFloorName,
+					FloorCode:  r.RefFloorCode,
+					Sections:   []model.SectionResponse{},
+				})
+				floor = &branch.Floors[len(branch.Floors)-1]
+			}
+
+			// Add section if exists
+			if r.RefSectionId != 0 {
+				log.Infof("    📂 Adding section: ID=%d, Name=%s (FloorID=%d)", r.RefSectionId, r.RefSectionName, r.RefFloorId)
+				floor.Sections = append(floor.Sections, model.SectionResponse{
+					RefSectionId:     r.RefSectionId,
+					SectionName:      r.RefSectionName,
+					SectionCode:      r.RefSectionCode,
+					CategoryId:       r.RefCategoryId,
+					RefSubCategoryId: r.RefSubCategoryId,
+				})
+			} else {
+				log.Infof("⚠️ No section found for FloorID=%d", r.RefFloorId)
+			}
+		} else {
+			log.Infof("⚠️ No floor found for BranchID=%d", r.RefBranchId)
+		}
+	}
+
+	// Convert map to slice
+	var response []model.BranchResponse
+	for _, b := range branchMap {
+		response = append(response, *b)
+	}
+
+	log.Infof("✅ Successfully built response with %d branches", len(response))
+	return response, nil
+}
+
+func UpdateBranchWithFloor(db *gorm.DB, branchId string, branch *model.BranchWithFloor, floors []struct {
+	FloorName string
+	FloorCode string
+	Sections  []struct {
+		CategoryId       int
+		RefSubCategoryId int
+		SectionName      string
+		SectionCode      string
+	}
+}, userId int) error {
+	log := logger.InitLogger()
+	log.Info("Updating branch: " + branch.RefBranchName)
+
+	tx := db.Begin()
+
+	// Update branch
+	branch.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
+	branch.UpdatedBy = "Admin"
+
+	if err := tx.Table(`"Branches"`).Where(`"refBranchId" = ? AND "isDelete" = false`, branchId).Updates(branch).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Clean old floors & sections before inserting new ones
+	if err := tx.Table(`"refSections"`).Where(`"refFloorId" IN (SELECT "refFloorId" FROM "refFloors" WHERE "refBranchId" = ?)`, branchId).Delete(nil).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if err := tx.Table(`"refFloors"`).Where(`"refBranchId" = ?`, branchId).Delete(nil).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Insert updated floors and sections
+	for _, floor := range floors {
+		floorModel := model.Floors{
+			RefBranchId:  branch.RefBranchId,
+			RefFloorName: floor.FloorName,
+			RefFloorCode: floor.FloorCode,
+			IsActive:     "true",
+			CreatedAt:    time.Now().Format("2006-01-02 15:04:05"),
+			CreatedBy:    "Admin",
+		}
+		if err := tx.Table(`"refFloors"`).Create(&floorModel).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		for _, section := range floor.Sections {
+			sectionModel := model.Sections{
+				RefFloorId:       floorModel.RefFloorId,
+				RefSectionName:   section.SectionName,
+				RefSectionCode:   section.SectionCode,
+				RefCategoryId:    section.CategoryId,
+				RefSubCategoryId: section.RefSubCategoryId,
+				IsActive:         "true",
+				CreatedAt:        time.Now().Format("2006-01-02 15:04:05"),
+				CreatedBy:        "Admin",
+			}
+			if err := tx.Table(`"refSections"`).Create(&sectionModel).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		}
+	}
+
+	// Insert transaction history
+	history := model.TransactionHistory{
+		RefTransTypeId:  2, // update
+		RefTransHisData: fmt.Sprintf("Branch Updated: %s with Floors and Sections", branch.RefBranchName),
+		CreatedAt:       time.Now().Format("2006-01-02 15:04:05"),
+		CreatedBy:       "Admin",
+		RefUserId:       userId,
+	}
+	if err := tx.Table(`"TransactionHistory"`).Create(&history).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	tx.Commit()
+	log.Info("Branch update committed successfully")
+	return nil
+}
+
+func SoftDeleteBranch(db *gorm.DB, branchId string, userId int) error {
+	log := logger.InitLogger()
+
+	tx := db.Begin()
+
+	// Check branch exists & not already deleted
+	var existing model.Branch
+	if err := tx.Table(`"Branches"`).Where(`"refBranchId" = ? AND "isDelete" = false`, branchId).First(&existing).Error; err != nil {
+		tx.Rollback()
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("branch not found or already deleted")
+		}
+		return err
+	}
+
+	// Soft delete update
+	updateData := map[string]interface{}{
+		"isDelete":  true,
+		"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
+		"updatedBy": "Admin",
+	}
+
+	if err := tx.Table(`"Branches"`).Where(`"refBranchId" = ?`, branchId).Updates(updateData).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Insert transaction history
+	history := model.TransactionHistory{
+		RefTransTypeId:  3, // 3 = delete
+		RefTransHisData: fmt.Sprintf("Branch Soft Deleted: %s", existing.RefBranchName),
+		CreatedAt:       time.Now().Format("2006-01-02 15:04:05"),
+		CreatedBy:       "Admin",
+		RefUserId:       userId,
+	}
+	if err := tx.Table(`"TransactionHistory"`).Create(&history).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	tx.Commit()
+	log.Info("Branch soft deleted successfully: %d", existing.RefBranchId)
 	return nil
 }
 
@@ -714,21 +982,22 @@ func GetAttributesService(db *gorm.DB) []model.AttributeWithGroup {
 	log.Info("🛠️ GetAttributesService invoked")
 
 	query := `
-		SELECT 
-		a."attributeId",
-		a."attributeGroupId",
-		ag."attributeGroupName",
-		a."attributeKey",
-		a."attributeValue",
-		a."createdAt",
-		a."createdBy",
-		a."updatedAt",
-		a."updatedBy",
-		a."isDelete"
-	FROM "Attributes" AS a
-	LEFT JOIN "AttributeGroup" AS ag
-		ON a."attributeGroupId" = ag."attributeGroupId"
-	WHERE a."isDelete" = false
+		SELECT
+			a."attributeId",
+			a."attributeGroupId",
+			ag."attributeGroupName",
+			a."attributeKey",
+			a."attributeValue",
+			a."createdAt",
+			a."createdBy",
+			a."updatedAt",
+			a."updatedBy",
+			a."isDelete"
+		FROM
+			"Attributes" AS a
+		LEFT JOIN "AttributeGroup" AS ag ON a."attributeGroupId" = ag."attributeGroupId"
+		ORDER BY
+			a."attributeId";
 	`
 
 	var attributes []model.AttributeWithGroup
@@ -1134,7 +1403,6 @@ func UpdateProfileService(db *gorm.DB, id string, data *model.ProfilePayload) er
 
 	return txn.Commit().Error
 }
-
 
 func FetchSettingsOverview(db *gorm.DB) (model.SettingsOverview, error) {
 	var overview model.SettingsOverview
