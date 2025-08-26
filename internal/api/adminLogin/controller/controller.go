@@ -13,6 +13,7 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"github.com/gin-gonic/gin"
+
 )
 
 func AdminLoginController() gin.HandlerFunc {
@@ -95,7 +96,54 @@ func ForgotPasswordController() gin.HandlerFunc {
 		}
 		dbConn.Create(&otpEntry)
 
-		html := fmt.Sprintf("<p>Your OTP is <b>%s</b>. It will expire in 2 minutes.</p>", otp)
+		html := fmt.Sprintf(`
+		<table width="100%%" cellspacing="0" cellpadding="0" style="font-family: Arial, sans-serif; background-color: #f9f9f9; padding: 5px;">
+			<tr>
+				<td align="center">
+					<table width="600" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+						<tr>
+							<td style="background-color: #8B0000; padding: 20px; text-align: center; color: white;">
+								<h2 style="margin: 0;">🔑 Password Reset Request</h2>
+							</td>
+						</tr>
+						<tr>
+							<td style="padding: 30px; color: #333;">
+								<p>Dear <strong>User</strong>,</p>
+
+								<p>We received a request to reset your password for your <strong>Snehalayaa Silks ERP</strong> account.</p>
+
+								<p style="margin: 20px 0; font-size: 16px; text-align: center;">
+									Your One-Time Password (OTP) is:
+								</p>
+
+								<p style="text-align: center; font-size: 24px; font-weight: bold; color: #8B0000; margin: 10px 0;">
+									%s
+								</p>
+
+								<p style="text-align: center; color: #555;">This OTP will expire in <strong>2 minutes</strong>.</p>
+
+								<p>If you did not request a password reset, please ignore this email. Your account will remain secure.</p>
+
+								<hr style="margin: 30px 0; border: none; border-top: 1px solid #ccc;" />
+
+								<p style="font-style: italic; color: #555; text-align: center;">
+									Your security is our priority at Snehalayaa Silks.
+								</p>
+
+								<p style="margin-top: 30px;">Warm regards,</p>
+								<p><strong>Support Team</strong><br/>Snehalayaa Silks ERP Project</p>
+							</td>
+						</tr>
+						<tr>
+							<td style="background-color: #f2f2f2; text-align: center; padding: 15px; font-size: 12px; color: #999;">
+								© 2025 Snehalayaa Silks. All rights reserved.
+							</td>
+						</tr>
+					</table>
+				</td>
+			</tr>
+		</table>
+	`, otp)
 		if !mailService.MailService(req.Email, html, "Password Reset OTP") {
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to send OTP email"})
 			return

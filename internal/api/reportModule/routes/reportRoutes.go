@@ -10,4 +10,6 @@ func ReportRoutes(router *gin.Engine) {
 	route := router.Group("/api/v1/admin/reports")
 
 	route.POST("/productReports", accesstoken.JWTMiddleware(), reportController.GetAllProductsReportController())
+	route.POST("/productReportsDownload", accesstoken.JWTMiddleware(), reportController.GetAllProductsReportController())
+
 }

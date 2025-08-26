@@ -26,4 +26,10 @@ type Supplier struct {
 	UpdatedAt              string `json:"updatedAt" gorm:"column:updatedAt"`
 	UpdatedBy              string `json:"updatedBy" gorm:"column:updatedBy"`
 	IsDelete               bool   `json:"isDelete" gorm:"column:isDelete"`
+	CreditedDays           int    `json:"creditedDays" gorm:"column:creditedDays"`
+}
+
+type BulkDeleteRequest struct {
+	IDs      []int `json:"ids"`      // array of supplier IDs
+	IsDelete bool  `json:"isDelete"` // true = delete, false = restore
 }

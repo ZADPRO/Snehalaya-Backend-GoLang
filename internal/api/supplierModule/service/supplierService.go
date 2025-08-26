@@ -152,3 +152,38 @@ func DeleteSupplier(db *gorm.DB, id string) error {
 
 	return nil
 }
+
+func BulkDeleteSuppliers(db *gorm.DB, ids []int, isDelete bool) error {
+	log := logger.InitLogger()
+	action := "deleting"
+	if !isDelete {
+		action = "restoring"
+	}
+	log.Infof("🗑️ Bulk %s suppliers: %v", action, ids)
+
+	err := db.Table("Supplier").
+		Where(`"supplierId" IN (?)`, ids).
+		Updates(map[string]interface{}{
+			"isDelete":  isDelete,
+			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
+			"updatedBy": "Admin",
+		}).Error
+
+	if err != nil {
+		log.Error("❌ Error during bulk update: " + err.Error())
+		return err
+	}
+
+	log.Infof("✅ Suppliers %s successfully in DB", action)
+
+	// Optional: Log transaction for each supplier
+	for _, id := range ids {
+		transErr := service.LogTransaction(db, 1, "Admin", 2,
+			fmt.Sprintf("Supplier %s: %d", action, id))
+		if transErr != nil {
+			log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+		}
+	}
+
+	return nil
+}

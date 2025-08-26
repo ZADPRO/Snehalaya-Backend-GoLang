@@ -1,6 +1,7 @@
 package supplierController
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/supplierModule/model"
@@ -277,6 +278,73 @@ func DeleteSupplierController() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  true,
 			"message": "Supplier deleted successfully",
+			"token":   token,
+		})
+	}
+}
+
+func BulkDeleteSupplierController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("🗑️ BulkDeleteSupplierController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing user context data")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var req model.BulkDeleteRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			log.Error("❌ Invalid request body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid request payload",
+			})
+			return
+		}
+
+		if len(req.IDs) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "No supplier IDs provided",
+			})
+			return
+		}
+
+		log.Infof("🔍 Bulk action on suppliers: %v, isDelete=%v", req.IDs, req.IsDelete)
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		err := supplierService.BulkDeleteSuppliers(dbConn, req.IDs, req.IsDelete)
+		if err != nil {
+			log.Error("❌ Failed to update suppliers: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to update suppliers",
+			})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		action := "deleted"
+		if !req.IsDelete {
+			action = "restored"
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": fmt.Sprintf("Suppliers %s successfully", action),
 			"token":   token,
 		})
 	}
