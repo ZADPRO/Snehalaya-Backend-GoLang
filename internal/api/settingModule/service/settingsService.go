@@ -12,7 +12,6 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
-
 )
 
 // CATEGORIES SERVICE
@@ -125,6 +124,7 @@ func UpdateCategoryService(db *gorm.DB, category *model.Category, roleName strin
 		Updates(map[string]interface{}{
 			"categoryName": category.CategoryName,
 			"categoryCode": category.CategoryCode,
+			"profitMargin": category.ProfitMargin,
 			"isActive":     category.IsActive,
 		}).Error
 
@@ -708,7 +708,7 @@ func GetBranchWithFloorsService(db *gorm.DB, branchIdStr string) ([]model.Branch
 
 	if len(rows) == 0 {
 		log.Warn("⚠️ No branches found")
-		return nil, errors.New("no branches found")
+		return []model.BranchResponse{}, nil
 	}
 
 	// Map to group branches
@@ -783,76 +783,156 @@ func GetBranchWithFloorsService(db *gorm.DB, branchIdStr string) ([]model.Branch
 	return response, nil
 }
 
-func UpdateBranchWithFloor(db *gorm.DB, branchId string, branch *model.BranchWithFloor, floors []struct {
-	FloorName string
-	FloorCode string
-	Sections  []struct {
+func UpdateBranchWithFloor(db *gorm.DB, branchId int, branch *model.BranchWithFloor, floors []struct {
+	RefFloorId int
+	FloorName  string
+	FloorCode  string
+	Sections   []struct {
+		RefSectionId     int
 		CategoryId       int
 		RefSubCategoryId int
 		SectionName      string
 		SectionCode      string
 	}
 }, userId int) error {
-	log := logger.InitLogger()
-	log.Info("Updating branch: " + branch.RefBranchName)
 
 	tx := db.Begin()
 
-	// Update branch
-	branch.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
-	branch.UpdatedBy = "Admin"
-
-	if err := tx.Table(`"Branches"`).Where(`"refBranchId" = ? AND "isDelete" = false`, branchId).Updates(branch).Error; err != nil {
+	// ✅ Update branch info
+	if err := tx.Table(`"Branches"`).
+		Where(`"refBranchId" = ? AND "isDelete" = false`, branchId).
+		Updates(map[string]interface{}{
+			"refBranchName": branch.RefBranchName,
+			"refBranchCode": branch.RefBranchCode,
+			"refLocation":   branch.RefLocation,
+			"refMobile":     branch.RefMobile,
+			"refEmail":      branch.RefEmail,
+			"updatedAt":     time.Now().Format("2006-01-02 15:04:05"),
+			"updatedBy":     "Admin",
+		}).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	// Clean old floors & sections before inserting new ones
-	if err := tx.Table(`"refSections"`).Where(`"refFloorId" IN (SELECT "refFloorId" FROM "refFloors" WHERE "refBranchId" = ?)`, branchId).Delete(nil).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-	if err := tx.Table(`"refFloors"`).Where(`"refBranchId" = ?`, branchId).Delete(nil).Error; err != nil {
+	// ✅ Fetch existing floors & sections for diff
+	var existingFloors []model.Floors
+	if err := tx.Table(`"refFloors"`).Where(`"refBranchId" = ? AND "isDelete" = false`, branchId).Find(&existingFloors).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	// Insert updated floors and sections
+	existingFloorMap := make(map[int]bool)
+	for _, f := range existingFloors {
+		existingFloorMap[f.RefFloorId] = true
+	}
+
+	// ✅ Process Floors
+	payloadFloorIds := make(map[int]bool)
 	for _, floor := range floors {
-		floorModel := model.Floors{
-			RefBranchId:  branch.RefBranchId,
-			RefFloorName: floor.FloorName,
-			RefFloorCode: floor.FloorCode,
-			IsActive:     "true",
-			CreatedAt:    time.Now().Format("2006-01-02 15:04:05"),
-			CreatedBy:    "Admin",
+		if floor.RefFloorId > 0 {
+			// Update existing floor
+			if err := tx.Table(`"refFloors"`).Where(`"refFloorId" = ?`, floor.RefFloorId).
+				Updates(map[string]interface{}{
+					"refFloorName": floor.FloorName,
+					"refFloorCode": floor.FloorCode,
+					"updatedAt":    time.Now().Format("2006-01-02 15:04:05"),
+					"updatedBy":    "Admin",
+				}).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		} else {
+			// Insert new floor
+			newFloor := model.Floors{
+				RefBranchId:  branchId,
+				RefFloorName: floor.FloorName,
+				RefFloorCode: floor.FloorCode,
+				IsActive:     "true",
+				CreatedAt:    time.Now().Format("2006-01-02 15:04:05"),
+				CreatedBy:    "Admin",
+			}
+			if err := tx.Table(`"refFloors"`).Create(&newFloor).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+			floor.RefFloorId = newFloor.RefFloorId
 		}
-		if err := tx.Table(`"refFloors"`).Create(&floorModel).Error; err != nil {
+		payloadFloorIds[floor.RefFloorId] = true
+
+		// ✅ Process Sections
+		var existingSections []model.Sections
+		if err := tx.Table(`"refSections"`).Where(`"refFloorId" = ? AND "isDelete" = false`, floor.RefFloorId).Find(&existingSections).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
+		existingSectionMap := make(map[int]bool)
+		for _, s := range existingSections {
+			existingSectionMap[s.RefSectionId] = true
+		}
 
+		payloadSectionIds := make(map[int]bool)
 		for _, section := range floor.Sections {
-			sectionModel := model.Sections{
-				RefFloorId:       floorModel.RefFloorId,
-				RefSectionName:   section.SectionName,
-				RefSectionCode:   section.SectionCode,
-				RefCategoryId:    section.CategoryId,
-				RefSubCategoryId: section.RefSubCategoryId,
-				IsActive:         "true",
-				CreatedAt:        time.Now().Format("2006-01-02 15:04:05"),
-				CreatedBy:        "Admin",
+			if section.RefSectionId > 0 {
+				// Update section
+				if err := tx.Table(`"refSections"`).Where(`"refSectionId" = ?`, section.RefSectionId).
+					Updates(map[string]interface{}{
+						"refSectionName":   section.SectionName,
+						"refSectionCode":   section.SectionCode,
+						"refCategoryId":    section.CategoryId,
+						"refSubCategoryId": section.RefSubCategoryId,
+						"updatedAt":        time.Now().Format("2006-01-02 15:04:05"),
+						"updatedBy":        "Admin",
+					}).Error; err != nil {
+					tx.Rollback()
+					return err
+				}
+			} else {
+				// Insert new section
+				newSection := model.Sections{
+					RefFloorId:       floor.RefFloorId,
+					RefSectionName:   section.SectionName,
+					RefSectionCode:   section.SectionCode,
+					RefCategoryId:    section.CategoryId,
+					RefSubCategoryId: section.RefSubCategoryId,
+					IsActive:         "true",
+					CreatedAt:        time.Now().Format("2006-01-02 15:04:05"),
+					CreatedBy:        "Admin",
+				}
+				if err := tx.Table(`"refSections"`).Create(&newSection).Error; err != nil {
+					tx.Rollback()
+					return err
+				}
+				section.RefSectionId = newSection.RefSectionId
 			}
-			if err := tx.Table(`"refSections"`).Create(&sectionModel).Error; err != nil {
+			payloadSectionIds[section.RefSectionId] = true
+		}
+
+		// Soft delete missing sections
+		for sid := range existingSectionMap {
+			if !payloadSectionIds[sid] {
+				if err := tx.Table(`"refSections"`).Where(`"refSectionId" = ?`, sid).
+					Updates(map[string]interface{}{"isDelete": true, "updatedAt": time.Now().Format("2006-01-02 15:04:05")}).Error; err != nil {
+					tx.Rollback()
+					return err
+				}
+			}
+		}
+	}
+
+	// Soft delete missing floors
+	for fid := range existingFloorMap {
+		if !payloadFloorIds[fid] {
+			if err := tx.Table(`"refFloors"`).Where(`"refFloorId" = ?`, fid).
+				Updates(map[string]interface{}{"isDelete": true, "updatedAt": time.Now().Format("2006-01-02 15:04:05")}).Error; err != nil {
 				tx.Rollback()
 				return err
 			}
 		}
 	}
 
-	// Insert transaction history
+	// ✅ Insert Transaction History
 	history := model.TransactionHistory{
-		RefTransTypeId:  2, // update
+		RefTransTypeId:  2, // Update
 		RefTransHisData: fmt.Sprintf("Branch Updated: %s with Floors and Sections", branch.RefBranchName),
 		CreatedAt:       time.Now().Format("2006-01-02 15:04:05"),
 		CreatedBy:       "Admin",
@@ -864,7 +944,6 @@ func UpdateBranchWithFloor(db *gorm.DB, branchId string, branch *model.BranchWit
 	}
 
 	tx.Commit()
-	log.Info("Branch update committed successfully")
 	return nil
 }
 
@@ -1010,6 +1089,99 @@ func GetAttributesService(db *gorm.DB) []model.AttributeWithGroup {
 
 	log.Infof("✅ Retrieved %d Attributes from DB", len(attributes))
 	return attributes
+}
+
+// ATTRIBUTES LATEST
+func CreateProductFieldService(db *gorm.DB, field *model.ProductFieldDefinition, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("🛠️ CreateProductFieldService invoked")
+
+	// Duplicate check
+	var existing model.ProductFieldDefinition
+	err := db.Table(`"purchaseOrder".product_field_definitions`).
+		Where(`"column_label" = ? AND "isDelete" = ?`, field.ColumnLabel, false).
+		First(&existing).Error
+
+	if err == nil {
+		log.Warn("⚠️ Duplicate attribute found")
+		return fmt.Errorf("duplicate value found")
+	} else if err != gorm.ErrRecordNotFound {
+		log.Error("❌ DB error: " + err.Error())
+		return err
+	}
+
+	field.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
+	field.CreatedBy = roleName
+	field.IsDelete = false
+
+	err = db.Table(`"purchaseOrder".product_field_definitions`).Create(field).Error
+	if err != nil {
+		log.Error("❌ Failed to insert attribute: " + err.Error())
+		return err
+	}
+
+	// Log transaction
+	_ = transactionLogger.LogTransaction(db, 1, roleName, 2, "Attribute Created: "+field.ColumnLabel)
+
+	log.Info("✅ Attribute created successfully in DB")
+	return nil
+}
+
+func GetAllProductFieldsService(db *gorm.DB) []model.ProductFieldDefinition {
+	log := logger.InitLogger()
+	log.Info("📦 GetAllProductFieldsService invoked")
+
+	var attributes []model.ProductFieldDefinition
+	err := db.Table(`"purchaseOrder".product_field_definitions`).
+		Where(`"isDelete" = ?`, false).
+		Order(`id ASC`).
+		Find(&attributes).Error
+
+	if err != nil {
+		log.Error("❌ Failed to fetch attributes: " + err.Error())
+	}
+
+	return attributes
+}
+
+func UpdateProductFieldService(db *gorm.DB, field *model.ProductFieldDefinition, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("🛠️ UpdateProductFieldService invoked")
+
+	var existing model.ProductFieldDefinition
+	err := db.Table(`"purchaseOrder".product_field_definitions`).
+		Where(`id = ? AND "isDelete" = ?`, field.ID, false).
+		First(&existing).Error
+
+	if err != nil {
+		log.Error("❌ Attribute not found: " + err.Error())
+		return fmt.Errorf("record not found")
+	}
+
+	// Duplicate check (other than same id)
+	var duplicate model.ProductFieldDefinition
+	err = db.Table(`"purchaseOrder".product_field_definitions`).
+		Where(`"column_label" = ? AND id <> ? AND "isDelete" = ?`, field.ColumnLabel, field.ID, false).
+		First(&duplicate).Error
+
+	if err == nil {
+		log.Warn("⚠️ Duplicate label found")
+		return fmt.Errorf("duplicate value found")
+	}
+
+	field.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
+	field.UpdatedBy = roleName
+
+	err = db.Table(`"purchaseOrder".product_field_definitions`).Model(&existing).Updates(field).Error
+	if err != nil {
+		log.Error("❌ Failed to update attribute: " + err.Error())
+		return err
+	}
+
+	_ = transactionLogger.LogTransaction(db, 1, roleName, 3, "Attribute Updated: "+field.ColumnLabel)
+
+	log.Info("✅ Attribute updated successfully")
+	return nil
 }
 
 // EMPLOYEE - SELECT ROLE TYPE
@@ -1224,7 +1396,7 @@ func GetAllEmployeesService(db *gorm.DB) ([]model.EmployeeResponse, error) {
 		LEFT JOIN "refUserAuthCred" a ON u."refUserId" = a."refUserId"
 		LEFT JOIN "refUserCommunicationDetails" c ON u."refUserId" = c."refUserId"
 		WHERE u."isDelete" = false
-		ORDER BY u."refUserId" DESC;
+		ORDER BY u."refUserId" ASC;
 	`
 
 	if err := db.Raw(query).Scan(&employees).Error; err != nil {
@@ -1269,6 +1441,8 @@ func UpdateEmployeeService(db *gorm.DB, id string, data *model.EmployeePayload) 
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	updatedBy := "Admin"
+
+	fmt.Println("\n\n\n\nEmployeee data", data)
 
 	// Step 1: Update Users
 	userUpdate := map[string]interface{}{

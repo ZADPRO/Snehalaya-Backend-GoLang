@@ -1069,14 +1069,24 @@ func GetNewBranchWithFloorController() gin.HandlerFunc {
 
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
-		log.Info("✅ Sending response with branch floors\n\n")
-		log.Info("\n=================================================================\n")
+		if len(branch) == 0 {
+			// No data found but still success
+			c.JSON(http.StatusOK, gin.H{
+				"status":  true,
+				"message": "No data found",
+				"data":    []model.BranchResponse{},
+				"token":   token,
+			})
+			return
+		}
 
+		// Data found
 		c.JSON(http.StatusOK, gin.H{
 			"status": true,
 			"data":   branch,
 			"token":  token,
 		})
+
 	}
 }
 
@@ -1155,30 +1165,29 @@ func GetNewBranchWithFloorWithIdController() gin.HandlerFunc {
 func UpdateBranchWithFloorController() gin.HandlerFunc {
 	log := logger.InitLogger()
 	return func(c *gin.Context) {
-		log.Info("\n\nUpdate Branch Controller invoked")
+		log.Info("Update Branch Controller invoked")
 
-		// Extract JWT context values
-		idValue, idExists := c.Get("id")
-		roleIdValue, roleIdExists := c.Get("roleId")
-		branchIdValue, branchIdExists := c.Get("branchId")
-
-		if !idExists || !roleIdExists || !branchIdExists {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"status":  false,
-				"message": "User ID, RoleID, Branch ID not found in request context.",
-			})
+		branchIdParam := c.Param("id")
+		branchId, err := strconv.Atoi(branchIdParam)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid branch ID"})
 			return
 		}
 
-		// Extract branchId from path param
-		paramId := c.Param("id")
+		idValue, idExists := c.Get("id")
+		if !idExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Unauthorized"})
+			return
+		}
 
 		var payload struct {
 			model.BranchWithFloor
 			Floors []struct {
-				FloorName string
-				FloorCode string
-				Sections  []struct {
+				RefFloorId int
+				FloorName  string
+				FloorCode  string
+				Sections   []struct {
+					RefSectionId     int
 					CategoryId       int
 					RefSubCategoryId int
 					SectionName      string
@@ -1191,42 +1200,20 @@ func UpdateBranchWithFloorController() gin.HandlerFunc {
 		defer sqlDB.Close()
 
 		if err := c.ShouldBindJSON(&payload); err != nil {
-			log.Error("Invalid payload: " + err.Error())
-			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid request payload"})
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid payload"})
 			return
 		}
 
-		userId := 0
-		switch v := idValue.(type) {
-		case float64:
-			userId = int(v)
-		case int:
-			userId = v
-		default:
-			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Invalid user ID type"})
-			return
-		}
+		userId := int(idValue.(float64))
 
-		// Extract role
-		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
-		fmt.Println("Role ID:", roleId)
+		err = settingsService.UpdateBranchWithFloor(dbConnt, branchId, &payload.BranchWithFloor, payload.Floors, userId)
 		if err != nil {
-			log.Error("❌ Invalid role ID: " + err.Error())
-			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
-			return
-		}
-
-		// Service call
-		err = settingsService.UpdateBranchWithFloor(dbConnt, paramId, &payload.BranchWithFloor, payload.Floors, userId)
-		if err != nil {
-			log.Error("Failed to update branch with floors: " + err.Error())
+			log.Error("Failed to update branch: " + err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
 			return
 		}
 
-		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
-		log.Info("Branch with Floors and Sections updated successfully")
-		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch updated with Floors and Sections", "token": token})
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Branch updated successfully"})
 	}
 }
 
@@ -1605,6 +1592,202 @@ func DeleteAttributeGroupController() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  true,
 			"message": "Categories deleted successfully",
+			"token":   token,
+		})
+	}
+}
+
+// ATTRIUTES - NEW
+func CreateProductFieldController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n\n🚀 CreateProductFieldController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context data")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var attribute model.ProductFieldDefinition
+		if err := c.ShouldBindJSON(&attribute); err != nil {
+			log.Error("📦 Invalid request body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+		log.Infof("📦 Request Body: %+v", attribute)
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Error("🔍 Failed to get role name: " + err.Error())
+		} else {
+			log.Infof("✅ Role Name resolved: %s", roleName)
+		}
+
+		err = settingsService.CreateProductFieldService(dbConnt, &attribute, roleName)
+		if err != nil {
+			log.Error("❌ Service Error: " + err.Error())
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to create attribute"})
+			}
+			return
+		}
+
+		log.Info("✅ Attribute created successfully\n\n")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Attribute created successfully",
+			"token":   token,
+		})
+	}
+}
+
+func GetAllProductFieldsController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n📥 GetAllProductFieldsController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values (id/roleId/branchId)")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer func() {
+			err := sqlDB.Close()
+			if err != nil {
+				log.Error("❌ Failed to close DB connection: " + err.Error())
+			} else {
+				log.Info("✅ DB connection closed")
+			}
+		}()
+
+		log.Info("📦 Fetching all product fields from DB")
+		attributes := settingsService.GetAllProductFieldsService(dbConnt)
+		log.Infof("📊 Attributes fetched: count = %d", len(attributes))
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("✅ Sending response with attribute list\n\n")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   attributes,
+			"token":  token,
+		})
+	}
+}
+
+func UpdateProductFieldController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n📥 UpdateProductFieldController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values (id/roleId/branchId)")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var attribute model.ProductFieldDefinition
+		if err := c.ShouldBindJSON(&attribute); err != nil {
+			log.Error("❌ Invalid request body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+		log.Infof("📦 Request Body: %+v", attribute)
+
+		dbConnt, sqlDB := db.InitDB()
+		defer func() {
+			if err := sqlDB.Close(); err != nil {
+				log.Error("❌ Failed to close DB connection: " + err.Error())
+			} else {
+				log.Info("✅ DB connection closed")
+			}
+		}()
+
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Error("❌ Failed to get role name: " + err.Error())
+		} else {
+			log.Infof("👤 Role Name: %s", roleName)
+		}
+
+		log.Info("🛠️ Calling UpdateProductFieldService")
+		errH := settingsService.UpdateProductFieldService(dbConnt, &attribute, roleName)
+		if errH != nil {
+			log.Error("❌ Service error: " + errH.Error())
+			if errH.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update attribute"})
+			}
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("✅ Attribute updated successfully\n\n")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Attribute updated successfully",
 			"token":   token,
 		})
 	}

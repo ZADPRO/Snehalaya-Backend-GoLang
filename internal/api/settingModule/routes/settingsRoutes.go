@@ -47,6 +47,12 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route.PUT("/attributes", accesstoken.JWTMiddleware(), settingsController.UpdateAttributeGroupController())
 	route.POST("/attributesHide", accesstoken.JWTMiddleware(), settingsController.DeleteAttributeGroupController())
 
+	routev2.POST("/attributes")
+
+	route.POST("/product-fields", accesstoken.JWTMiddleware(), settingsController.CreateProductFieldController())
+	route.GET("/product-fields", accesstoken.JWTMiddleware(), settingsController.GetAllProductFieldsController())
+	route.PUT("/product-fields", accesstoken.JWTMiddleware(), settingsController.UpdateProductFieldController())
+
 	// EMPLOYEES ROUTES
 	route.GET("/employeeRoleType", accesstoken.JWTMiddleware(), settingsController.GetEmployeeRoleType())
 	route.POST("/employees", accesstoken.JWTMiddleware(), settingsController.CreateEmployeeController())

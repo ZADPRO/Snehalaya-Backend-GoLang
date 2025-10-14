@@ -13,7 +13,6 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"github.com/gin-gonic/gin"
-
 )
 
 func AdminLoginController() gin.HandlerFunc {
@@ -70,12 +69,20 @@ func ForgotPasswordController() gin.HandlerFunc {
 		defer sqlDB.Close()
 
 		var user model.AdminLoginModelReq
-		err := dbConn.Raw(`SELECT u."refUserId", u."refUserStatus", ucd."refUCDEmail"
-				FROM "Users" u
+		err := dbConn.Raw(`
+			SELECT
+				u."refUserId",
+				u."refUserStatus",
+				ucd."refUCDEmail"
+			FROM
+				"Users" u
 				JOIN "refUserCommunicationDetails" ucd ON u."refUserId" = ucd."refUserId"
-				WHERE ucd."refUCDEmail" = ? AND u."refUserStatus" = 'Active'
-				LIMIT 1;
-				`, req.Email).
+			WHERE
+				ucd."refUCDEmail" = $1
+				AND u."refUserStatus" = 'Active'
+				AND u."isDelete" = false
+			LIMIT 1;
+			`, req.Email).
 			Scan(&user).Error
 
 		if err != nil || user.UserId == 0 {

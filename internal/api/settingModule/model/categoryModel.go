@@ -200,7 +200,7 @@ type EmployeePayload struct {
 	Designation     string `json:"designation"`
 	RoleTypeId      int    `json:"roleTypeId"`
 	RefUserStatus   bool   `json:"refUserStatus"`
-	RefUserBranchId int    `gorm:"column:refUserBranchId"`
+	RefUserBranchId int    `json:"refUserBranchId" gorm:"column:refUserBranchId"`
 	Username        string `json:"username"`
 	Mobile          string `json:"mobile"`
 	Email           string `json:"email"`
@@ -291,4 +291,22 @@ type SettingsOverview struct {
 	LatestSuppliers  []LatestSupplier           `json:"latestSuppliers"`
 	LatestCategories []LatestCategory           `json:"latestCategories"`
 	MonthlyCounts    []CategorySubCategoryCount `json:"monthlyCounts"`
+}
+
+type ProductFieldDefinition struct {
+	ID          int     `json:"id" gorm:"primaryKey;autoIncrement"`
+	ColumnName  *string `json:"column_name" gorm:"column:column_name"`
+	ColumnLabel string  `json:"column_label" gorm:"column:column_label"`
+	DataType    string  `json:"data_type" gorm:"column:data_type"`
+	Type        string  `json:"type" gorm:"column:type"`
+	IsRequired  bool    `json:"is_required" gorm:"column:is_required"`
+	CreatedAt   string  `json:"createdAt" gorm:"column:createdAt"`
+	CreatedBy   string  `json:"createdBy" gorm:"column:createdBy"`
+	UpdatedAt   string  `json:"updatedAt" gorm:"column:updatedAt"`
+	UpdatedBy   string  `json:"updatedBy" gorm:"column:updatedBy"`
+	IsDelete    bool    `json:"isDelete" gorm:"column:isDelete"`
+}
+
+func (ProductFieldDefinition) TableName() string {
+	return `"purchaseOrder".product_field_definitions`
 }
