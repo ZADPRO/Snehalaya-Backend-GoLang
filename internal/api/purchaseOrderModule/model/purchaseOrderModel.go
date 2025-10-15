@@ -66,6 +66,7 @@ type CreatePORequest struct {
 	ProductDetails  []ProductDetails `json:"productDetails"`
 	TotalSummary    TotalSummary     `json:"totalSummary"`
 	PurchaseOrderID int              `json:"purchaseOrderId"`
+	IsInternalPO    bool             `json:"isInternalPO"`
 }
 
 type CreatePurchaseOrder struct {
@@ -90,6 +91,7 @@ type CreatePurchaseOrder struct {
 	UpdatedAt       string `gorm:"column:updatedAt"`
 	UpdatedBy       string `gorm:"column:updatedBy"`
 	IsDelete        string `gorm:"column:isDelete"`
+	IsInternalPO    bool `gorm:"column:isInternalPO"`
 }
 
 func (CreatePurchaseOrder) TableName() string {

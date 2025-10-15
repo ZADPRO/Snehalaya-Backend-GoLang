@@ -9,6 +9,7 @@ import (
 	purchaseOrderQuery "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/query"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
+
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, payload *purchaseOrderModel.CreatePORequest, createdBy string) error {
@@ -39,6 +40,7 @@ func CreatePurchaseOrderService(db *gorm.DB, payload *purchaseOrderModel.CreateP
 		UpdatedAt:       payload.TotalSummary.UpdatedAt,
 		UpdatedBy:       payload.TotalSummary.UpdatedBy,
 		IsDelete:        fmt.Sprintf("%v", payload.TotalSummary.IsDelete),
+		IsInternalPO:    payload.IsInternalPO,
 	}
 
 	if err := db.Create(&order).Error; err != nil {
@@ -235,6 +237,8 @@ func GetDummyProductsByPOIDService(db *gorm.DB, poID string) ([]purchaseOrderMod
 		Find(&dummyProducts).Error; err != nil {
 		return nil, err
 	}
+
+	fmt.Printf("\n\n\n\n\ndummyProducts => %v\n\n", dummyProducts)
 
 	return dummyProducts, nil
 }
