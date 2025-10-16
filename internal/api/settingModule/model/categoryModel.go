@@ -9,6 +9,17 @@ type TransactionHistory struct {
 	RefUserId       int    `json:"refUserId" gorm:"column:refUserId"`
 }
 
+type InitialCategory struct {
+	InitialCategoryId   int    `json:"initialCategoryId" gorm:"column:initialCategoryId;primaryKey;autoIncrement"`
+	InitialCategoryName string `json:"initialCategoryName" gorm:"column:initialCategoryName"`
+	InitialCategoryCode string `json:"initialCategoryCode" gorm:"column:initialCategoryCode"`
+	IsDelete            bool   `json:"isDelete" gorm:"column:isDelete"`
+	CreatedAt           string `json:"createdAt" gorm:"column:createdAt"`
+	CreatedBy           string `json:"createdBy" gorm:"column:createdBy"`
+	UpdatedAt           string `json:"updatedAt" gorm:"column:updatedAt"`
+	UpdatedBy           string `json:"updatedBy" gorm:"column:updatedBy"`
+}
+
 type Category struct {
 	RefCategoryId int    `json:"refCategoryId" gorm:"column:refCategoryid;primaryKey;autoIncrement"`
 	CategoryName  string `json:"categoryName" gorm:"column:categoryName"`

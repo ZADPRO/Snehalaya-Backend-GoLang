@@ -14,6 +14,262 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// INITIAL CATEGORY CONTROLLER
+func CreateInitialCategoryController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\nCreate Initial Ctegory Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context data")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var initialCategory model.InitialCategory
+		if err := c.ShouldBindJSON(&initialCategory); err != nil {
+			log.Error("Invalid request body" + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		log.Infof("Request body : %+v", initialCategory)
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Error("🔍 Failed to get role name: " + err.Error())
+		} else {
+			log.Infof("✅ Role Name resolved: %s", roleName)
+		}
+
+		err = settingsService.CreateInitialCategoryService(dbConnt, &initialCategory, roleName)
+		if err != nil {
+			log.Error("❌ Service Error: " + err.Error())
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to create category"})
+			}
+			return
+		}
+
+		log.Info("✅ Category created successfully\n\n")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Category created successfully",
+			"token":   token,
+		})
+
+	}
+}
+
+func GetAllInitialCategoryController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("\n\n\nGetAllInitialCategoriesController Invoked")
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values (id/roleId/branchId)")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer func() {
+			err := sqlDB.Close()
+			if err != nil {
+				log.Error("❌ Failed to close DB connection: " + err.Error())
+			} else {
+				log.Info("✅ DB connection closed")
+			}
+		}()
+
+		initialCategories := settingsService.GetAllInitialCategoriesService(dbConnt)
+		log.Infof("Initial Categories fetched: count = %d", len(initialCategories))
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("✅ Sending response with initial category list\n\n")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   initialCategories,
+			"token":  token,
+		})
+
+	}
+}
+
+func UpdateInitialCategoryController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("\n\n\nUpdate Initial Category Controller Invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values (id/roleId/branchId)")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var initialCategory model.InitialCategory
+		if err := c.ShouldBindJSON(&initialCategory); err != nil {
+			log.Error("Invalid request Body " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		log.Infof("Request Body => %+v", initialCategory)
+
+		dbConnt, sqlDB := db.InitDB()
+		defer func() {
+			if err := sqlDB.Close(); err != nil {
+				log.Error("❌ Failed to close DB connection: " + err.Error())
+			} else {
+				log.Info("✅ DB connection closed")
+			}
+		}()
+
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Error("❌ Failed to get role name: " + err.Error())
+		} else {
+			log.Infof("👤 Role Name: %s", roleName)
+		}
+
+		log.Info("Calling Initial Update Category Service")
+		errH := settingsService.UpdateInitialCategoryService(dbConnt, &initialCategory, roleName)
+		if errH != nil {
+			log.Error("❌ Service error: " + errH.Error())
+			if errH.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to update initial category"})
+			}
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("Initial Category updated successfully\n\n")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Initial Category updated successfully",
+			"token":   token,
+		})
+	}
+}
+
+func DeleteInitialCategoryController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n\nDelete Initial Category Controller Invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing user/role/branch information in context")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		id := c.Param("id")
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Error("🔍 Failed to get role name: " + err.Error())
+		} else {
+			log.Infof("✅ Role Name resolved: %s", roleName)
+		}
+
+		if err := settingsService.DeleteInitialCategoryService(dbConnt, id, roleName); err != nil {
+			log.Error("Service error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to delete initial category",
+			})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("Initial category deleted successfully")
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Initial category deleted successfully",
+			"token":   token,
+		})
+	}
+}
+
 // CATEGORIES CONTROLLER
 
 func CreateCategoryController() gin.HandlerFunc {

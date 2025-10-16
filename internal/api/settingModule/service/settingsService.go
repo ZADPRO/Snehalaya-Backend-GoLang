@@ -14,6 +14,137 @@ import (
 	"gorm.io/gorm"
 )
 
+// INITIAL CATEGORY SERVICES
+func CreateInitialCategoryService(db *gorm.DB, initialCategory *model.InitialCategory, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("\n\n\nInitial Category Service Invoked")
+	log.Info("Input Initial Category %+v", initialCategory)
+	log.Info("Created By : %s", roleName)
+
+	var existing model.InitialCategory
+	err := db.Table("InitialCategories").
+		Where(`("initialCategoryName" = ? OR "initialCategoryCode" = ?) AND "isDelete" = ?`, initialCategory.InitialCategoryName, initialCategory.InitialCategoryCode, false).First(&existing).Error
+
+	if err == nil {
+		log.Warn("Duplicate Initial Category Found")
+		return fmt.Errorf("duplicate value found")
+	} else if err != gorm.ErrRecordNotFound {
+		log.Error("DB error during duplicate check : " + err.Error())
+		return err
+	}
+
+	log.Info("No Duplicate initial categories found, proceed to creation")
+	initialCategory.CreatedAt = time.Now().Format("2006-01-02 15:04:05")
+	initialCategory.CreatedBy = roleName
+
+	err = db.Table("InitialCategories").Create(initialCategory).Error
+	if err != nil {
+		log.Error("Failed ot insert category : " + err.Error())
+		return err
+	}
+
+	log.Info("Initial Category Inserted Successfully")
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 2, "Initial Category Created : "+initialCategory.InitialCategoryName)
+	if transErr != nil {
+		log.Error("Failed to log transaction : " + transErr.Error())
+
+	} else {
+		log.Info("Transaction Log saved Successfully \n\n")
+	}
+	return nil
+}
+
+func GetAllInitialCategoriesService(db *gorm.DB) []model.InitialCategory {
+	log := logger.InitLogger()
+	log.Info("🛠️ GetAllInitialCategoriesService invoked")
+
+	var initialCategory []model.InitialCategory
+
+	err := db.Table("InitialCategories").
+		Where(`"isDelete" = ?`, false).
+		Order(`"initialCategoryId" ASC`).
+		Find(&initialCategory).Error
+
+	if err != nil {
+		log.Error("❌ Failed to fetch initial categories: " + err.Error())
+	} else {
+		log.Infof("✅ Retrieved %d initial categories from DB", len(initialCategory))
+	}
+	return initialCategory
+}
+
+func UpdateInitialCategoryService(db *gorm.DB, initialCategory *model.InitialCategory, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("Update Initial Category Service Invoked => ", initialCategory)
+	log.Info("Updated By %s", roleName)
+
+	var existing model.InitialCategory
+	err := db.Table("InitialCategories").
+		Where(`("initialCategoryName" = ? OR "initialCategoryCode" = ?) AND "initialCategoryId" = ? AND "isDelete" = ?`, initialCategory.InitialCategoryName, initialCategory.InitialCategoryCode, initialCategory.InitialCategoryId, false).First(&existing).Error
+
+	if err == nil {
+		log.Warn("Duplicate Initial Category Found")
+		return fmt.Errorf("Duplicate Value Found")
+	} else if err != gorm.ErrRecordNotFound {
+		log.Error("DB error while checking for duplicates : ", err.Error())
+		return err
+	}
+
+	log.Info("No Duplicates found, proceeding with update")
+	initialCategory.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
+	initialCategory.UpdatedBy = roleName
+
+	log.Info("Logging Transaction for category update")
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 3, "Initial Category Updated : "+initialCategory.InitialCategoryName)
+	if transErr != nil {
+		log.Error("Failed to log into transactions : " + transErr.Error())
+	} else {
+		log.Info("Transaction Log Saved Successfully. ")
+	}
+
+	log.Info("Updating initial category in DB")
+	err = db.Table("InitialCategories").
+		Where(`"initialCategoryId" = ?`, initialCategory.InitialCategoryId).
+		Updates(map[string]interface{}{
+			"initialCategoryName": initialCategory.InitialCategoryName,
+			"initialCategoryCode": initialCategory.InitialCategoryCode,
+		}).Error
+
+	if err != nil {
+		log.Error("Initial Category Update Failed = > " + err.Error())
+	} else {
+		log.Info("Initial Category Updated Successfully")
+	}
+	return err
+}
+
+func DeleteInitialCategoryService(db *gorm.DB, id string, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("Soft Deleting - Initial Category With ID %s", id)
+	err := db.Table("InitialCategories").
+		Where(`"initialCategoryId" = ?`, id).
+		Updates(map[string]interface{}{
+			"isDelete":  true,
+			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
+			"updatedBy": roleName,
+		}).Error
+
+	if err != nil {
+		log.Error("Failed to soft delete initial category : " + err.Error())
+	}
+
+	log.Info("Initial Category Soft Deleted Successfully")
+	// Log transaction
+	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 4, "Initial Category Deleted: "+id)
+	if transErr != nil {
+		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+	} else {
+		log.Info("📘 Transaction log saved successfully")
+	}
+
+	return nil
+}
+
 // CATEGORIES SERVICE
 
 func CreateCategoryService(db *gorm.DB, category *model.Category, roleName string) error {
