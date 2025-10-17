@@ -25,12 +25,54 @@ func CreatePurchaseOrderProductService(db *gorm.DB, poPayload *poModuleModel.Pur
 		CreatedBy:     roleName,
 	}
 
-	log.Infof("💾 Creating PO: %+v", po)
-	if err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).Create(&po).Error; err != nil {
-		log.Error("❌ Failed to insert PO: " + err.Error())
-		return err
+	// Step 1️⃣ - Check if PO exists
+	var existingPO poModuleModel.PurchaseOrdersProducts
+	if err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).
+		Where(`purchase_order_id = ? AND "invoiceNumber" = ?`, poPayload.PoId, poPayload.PoInvoiceNumber).
+		First(&existingPO).Error; err != nil {
+
+		if err == gorm.ErrRecordNotFound {
+			log.Infof("⚠️ No existing PO found, creating new one instead.")
+			po := poModuleModel.PurchaseOrdersProducts{
+				PurchaseOrderId: poPayload.PoId,
+				SupplierID:      poPayload.SupplierId,
+				BranchID:        poPayload.BranchId,
+				TotalAmount:     poPayload.TotalAmount,
+				CreditedDate:    time.Now().Format("2006-01-02 15:04:05"),
+				InvoiceNumber:   poPayload.PoInvoiceNumber,
+				InvoiceStatus:   true,
+				CreatedAt:       time.Now().Format("2006-01-02 15:04:05"),
+				CreatedBy:       roleName,
+			}
+
+			if err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).Create(&po).Error; err != nil {
+				log.Error("❌ Failed to insert PO: " + err.Error())
+				return err
+			}
+			log.Infof("✅ PO created successfully with ID: %d", po.PurchaseOrderId)
+			existingPO = po
+		} else {
+			log.Error("❌ Failed to fetch PO: " + err.Error())
+			return err
+		}
+
+	} else {
+		// Update existing PO
+		log.Infof("🔄 Updating existing PO ID: %d, Invoice: %s", existingPO.PurchaseOrderId, existingPO.InvoiceNumber)
+		existingPO.TotalAmount = poPayload.TotalAmount
+		existingPO.InvoiceStatus = true
+		existingPO.UpdatedAt = time.Now().Format("2006-01-02 15:04:05")
+		existingPO.UpdatedBy = roleName
+
+		if err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).
+			Where(`purchase_order_id = ?`, poPayload.PoId).
+			Updates(&existingPO).Error; err != nil {
+			log.Error("❌ Failed to update existing PO: " + err.Error())
+			return err
+		}
+
+		log.Infof("✅ PO updated successfully with ID: %d", existingPO.PurchaseOrderId)
 	}
-	log.Infof("✅ PO created successfully with ID: %d", po.PurchaseOrderId)
 
 	// Insert PO Products
 	for idx, prod := range poPayload.Products {
@@ -83,23 +125,22 @@ func CreatePurchaseOrderProductService(db *gorm.DB, poPayload *poModuleModel.Pur
 			instanceNo++
 		}
 
-		for i := 0; i < prod.RejectedQty; i++ {
-			instance := poModuleModel.PurchaseOrderProductInstances{
-				PoProductID:        fmt.Sprintf("%v", poProduct.PoProductId),
-				SerialNo:           fmt.Sprintf("%v", instanceNo),
+		if prod.RejectedQty > 0 {
+			rejected := poModuleModel.RejectedProducts{
+				PoProductID:        poProduct.PoProductId,
 				CategoryID:         prod.CategoryId,
 				ProductDescription: prod.ProductName,
 				UnitPrice:          prod.UnitPrice,
-				Status:             "Rejected",
+				RejectedQty:        fmt.Sprintf("%v", prod.RejectedQty),
+				Reason:             "", // Optional: can pass rejection reason
 				CreatedAt:          time.Now().Format("2006-01-02 15:04:05"),
 				CreatedBy:          roleName,
 			}
-			log.Infof("💾 Creating Product Instance (Rejected): %+v", instance)
-			if err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderProductInstances"`).Create(&instance).Error; err != nil {
-				log.Error("❌ Failed to insert Product Instance: " + err.Error())
+			log.Infof("💾 Creating Rejected Product: %+v", rejected)
+			if err := db.Table(`"purchaseOrderMgmt"."RejectedProducts"`).Create(&rejected).Error; err != nil {
+				log.Error("❌ Failed to insert Rejected Product: " + err.Error())
 				return err
 			}
-			instanceNo++
 		}
 
 		log.Infof("✅ Finished processing product #%d", idx+1)

@@ -145,7 +145,7 @@ func GetAllPurchaseOrdersService(db *gorm.DB) []poModuleModel.PurchaseOrderPaylo
     `).
 		Joins(`LEFT JOIN public."Supplier" s ON po.supplier_id = s."supplierId"`).
 		Joins(`LEFT JOIN public."Branches" b ON po.branch_id = b."refBranchId"`).
-		Where(`po."isDelete" = ?`, false).
+		Where(`po."isDelete" = ? AND po."invoiceStatus" = ?`, false, false).
 		Order("po.purchase_order_id DESC").
 		Scan(&purchaseOrders).Error
 

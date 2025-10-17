@@ -60,3 +60,15 @@ type PurchaseOrderProductInstances struct {
 	CreatedAt          string `gorm:"column:createdAt"` // 👈 matches DB
 	CreatedBy          string `gorm:"column:createdBy"` // 👈 matches DB
 }
+
+type RejectedProducts struct {
+	RejectedProductId  int    `gorm:"primaryKey;column:rejected_product_id"`
+	PoProductID        int    `gorm:"column:po_product_id"`
+	CategoryID         int    `gorm:"column:category_id"`
+	ProductDescription string `gorm:"column:product_description"`
+	UnitPrice          string `gorm:"column:unit_price"`
+	RejectedQty        string `gorm:"column:rejected_qty"`
+	Reason             string `gorm:"column:reason"`
+	CreatedAt          string `gorm:"column:created_at"`
+	CreatedBy          string `gorm:"column:created_by"`
+}
