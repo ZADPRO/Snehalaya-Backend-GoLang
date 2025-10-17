@@ -114,9 +114,37 @@ func GetAllPurchaseOrdersService(db *gorm.DB) []poModuleModel.PurchaseOrderPaylo
 	var result []poModuleModel.PurchaseOrderPayload
 
 	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders" AS po`).
-		Select(`po.purchase_order_id, po.supplier_id, po.branch_id, po.sub_total, po.total_discount,
-            po.tax_enabled, po.tax_percentage, po.tax_amount, po.total_amount, po.credited_date,
-            po."createdAt", po."createdBy", po."invoiceNumber"`).
+		Select(`
+        po.purchase_order_id,
+        po."invoiceNumber",
+        po.sub_total,
+        po.total_discount,
+        po.tax_enabled,
+        po.tax_percentage,
+        po.tax_amount,
+        po.total_amount,
+        po.credited_date,
+        po."createdAt",
+        po."createdBy",
+        po."supplier_id" AS "supplierId",
+        s."supplierName" AS "supplierName",
+        s."supplierCompanyName" AS "supplierCompany",
+        s."supplierCode" AS "supplierCode",
+        s."supplierEmail" AS "supplierEmail",
+        s."supplierContactNumber" AS "supplierMobile", 
+        s."supplierGSTNumber" AS "supplierGST",
+        s."supplierPaymentTerms" AS "supplierTerms",
+        po."branch_id" AS "branchId",
+        b."refBranchName" AS "branchName",
+        b."refBranchCode" AS "branchCode",
+        b."refLocation" AS "branchLocation",
+        b."refMobile" AS "branchMobile",
+        b."refEmail" AS "branchEmail",
+        b."isMainBranch" AS "isMainBranch",
+        b."isActive" AS "isActive"
+    `).
+		Joins(`LEFT JOIN public."Supplier" s ON po.supplier_id = s."supplierId"`).
+		Joins(`LEFT JOIN public."Branches" b ON po.branch_id = b."refBranchId"`).
 		Where(`po."isDelete" = ?`, false).
 		Order("po.purchase_order_id DESC").
 		Scan(&purchaseOrders).Error
@@ -126,24 +154,35 @@ func GetAllPurchaseOrdersService(db *gorm.DB) []poModuleModel.PurchaseOrderPaylo
 		return result
 	}
 
-	// 2️⃣ For each purchase order, fetch products
 	for _, po := range purchaseOrders {
 		var products []poModuleModel.PurchaseOrderProduct
-
-		err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderProducts"`).
+		db.Table(`"purchaseOrderMgmt"."PurchaseOrderProducts"`).
 			Where("purchase_order_id = ?", po.PurchaseOrderID).
-			Scan(&products).Error
-
-		if err != nil {
-			log.Error(fmt.Sprintf("❌ Failed to fetch products for PO #%d: %v", po.PurchaseOrderID, err))
-			continue
-		}
+			Scan(&products)
 
 		poPayload := poModuleModel.PurchaseOrderPayload{
 			PurchaseOrderID: po.PurchaseOrderID,
 			InvoiceNumber:   po.InvoiceNumber,
-			Supplier:        struct{ SupplierId int }{SupplierId: po.SupplierID},
-			Branch:          struct{ RefBranchId int }{RefBranchId: po.BranchID},
+			Supplier: poModuleModel.SupplierDetails{
+				SupplierId:           po.SupplierID,
+				SupplierName:         po.SupplierName,
+				SupplierCompanyName:  po.SupplierCompany,
+				SupplierCode:         po.SupplierCode,
+				SupplierEmail:        po.SupplierEmail,
+				SupplierMobile:       po.SupplierMobile,
+				SupplierGSTNumber:    po.SupplierGST,
+				SupplierPaymentTerms: po.SupplierTerms,
+			},
+			Branch: poModuleModel.BranchDetails{
+				RefBranchId:   po.BranchID,
+				RefBranchName: po.BranchName,
+				RefBranchCode: po.BranchCode,
+				RefLocation:   po.BranchLocation,
+				RefMobile:     po.BranchMobile,
+				RefEmail:      po.BranchEmail,
+				IsMainBranch:  po.IsMainBranch,
+				IsActive:      po.IsActive,
+			},
 			Summary: struct {
 				SubTotal      string `json:"subTotal"`
 				TotalDiscount string `json:"totalDiscount"`
