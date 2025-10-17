@@ -160,6 +160,18 @@ func GetAllPurchaseOrdersService(db *gorm.DB) []poModuleModel.PurchaseOrderPaylo
 			Where("purchase_order_id = ?", po.PurchaseOrderID).
 			Scan(&products)
 
+		for i := range products {
+			if products[i].CategoryID != 0 {
+				var category poModuleModel.InitialCategory
+				err := db.Table(`"public"."InitialCategories"`).
+					Where(`"initialCategoryId"= ?`, products[i].CategoryID).
+					First(&category).Error
+				if err == nil {
+					products[i].CategoryDetails = &category
+				}
+			}
+		}
+
 		poPayload := poModuleModel.PurchaseOrderPayload{
 			PurchaseOrderID: po.PurchaseOrderID,
 			InvoiceNumber:   po.InvoiceNumber,

@@ -25,7 +25,6 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-
 )
 
 func main() {
@@ -69,7 +68,7 @@ func main() {
 	oldProductRoutes.OldProductMigrationRoutes(r)
 	shopfiyRoutes.RegisterShopifyRoutes(r)
 	PORoutes.PurchaseOrderRoutes(r)
-
+	PORoutes.PurchaseOrderProductRoutes(r)
 	// PING PONG API CALL FOR TESTING
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{

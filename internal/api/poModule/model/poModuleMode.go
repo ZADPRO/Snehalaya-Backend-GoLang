@@ -22,18 +22,19 @@ type PurchaseOrder struct {
 }
 
 type PurchaseOrderProduct struct {
-	POProductID     int    `gorm:"primaryKey;column:po_product_id" json:"poProductId"`
-	PurchaseOrderID int    `gorm:"column:purchase_order_id" json:"purchaseOrderId"`
-	CategoryID      int    `gorm:"column:category_id" json:"categoryId"`
-	Description     string `gorm:"column:description" json:"description"`
-	UnitPrice       string `gorm:"column:unit_price" json:"unitPrice"`
-	Discount        string `gorm:"column:discount" json:"discount"`
-	Quantity        string `gorm:"column:quantity" json:"quantity"`
-	Total           string `gorm:"column:total" json:"total"`
-	CreatedAt       string `gorm:"column:createdAt" json:"createdAt"`
-	CreatedBy       string `gorm:"column:createdBy" json:"createdBy"`
-	UpdatedAt       string `gorm:"column:updatedAt" json:"updatedAt"`
-	UpdatedBy       string `gorm:"column:updatedBy" json:"updatedBy"`
+	POProductID     int              `gorm:"primaryKey;column:po_product_id" json:"poProductId"`
+	PurchaseOrderID int              `gorm:"column:purchase_order_id" json:"purchaseOrderId"`
+	CategoryID      int              `gorm:"column:category_id" json:"categoryId"`
+	Description     string           `gorm:"column:description" json:"description"`
+	UnitPrice       string           `gorm:"column:unit_price" json:"unitPrice"`
+	Discount        string           `gorm:"column:discount" json:"discount"`
+	Quantity        string           `gorm:"column:quantity" json:"quantity"`
+	Total           string           `gorm:"column:total" json:"total"`
+	CreatedAt       string           `gorm:"column:createdAt" json:"createdAt"`
+	CreatedBy       string           `gorm:"column:createdBy" json:"createdBy"`
+	UpdatedAt       string           `gorm:"column:updatedAt" json:"updatedAt"`
+	UpdatedBy       string           `gorm:"column:updatedBy" json:"updatedBy"`
+	CategoryDetails *InitialCategory `gorm:"-" json:"categoryDetails,omitempty"` // important
 }
 
 type SupplierDetails struct {
@@ -58,6 +59,17 @@ type BranchDetails struct {
 	IsMainBranch  bool   `json:"isMainBranch"`
 	IsActive      bool   `json:"isActive"`
 	// Add more fields as needed
+}
+
+type InitialCategory struct {
+	InitialCategoryId   int    `json:"initialCategoryId" gorm:"column:initialCategoryId;primaryKey;autoIncrement"`
+	InitialCategoryName string `json:"initialCategoryName" gorm:"column:initialCategoryName"`
+	InitialCategoryCode string `json:"initialCategoryCode" gorm:"column:initialCategoryCode"`
+	IsDelete            bool   `json:"isDelete" gorm:"column:isDelete"`
+	CreatedAt           string `json:"createdAt" gorm:"column:createdAt"`
+	CreatedBy           string `json:"createdBy" gorm:"column:createdBy"`
+	UpdatedAt           string `json:"updatedAt" gorm:"column:updatedAt"`
+	UpdatedBy           string `json:"updatedBy" gorm:"column:updatedBy"`
 }
 
 type PurchaseOrderPayload struct {
