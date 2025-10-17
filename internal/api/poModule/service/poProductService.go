@@ -184,34 +184,33 @@ func GetAcceptedPurchaseOrdersService(db *gorm.DB) ([]poModuleModel.AcceptedPORe
 
 	var rawResults []rawPO
 	query := `
-	SELECT 
-		po.purchase_order_id,
-		po."invoiceNumber" AS invoice_number,
-		po.branch_id,
-		po.supplier_id,
-		po.total_amount,
-		po."createdAt" AS created_at,
-		COALESCE(
-			json_agg(
-				json_build_object(
-					'po_product_id', p.po_product_id,
-					'category_id', p.category_id,
-					'product_description', p.description,
-					'unit_price', p.unit_price,
-					'accepted_quantity', p.accepted_quantity,
-					'accepted_total', p.accepted_total,
-					'status', p.status,
-					'updated_at', p."updatedAt",
-					'updated_by', p."updatedBy"
-				)
-			) FILTER (WHERE p.status = 'Accepted'), '[]'
-		) AS accepted_products
-	FROM "purchaseOrderMgmt"."PurchaseOrders" po
-	LEFT JOIN "purchaseOrderMgmt"."PurchaseOrderProducts" p
-		ON po.purchase_order_id = p.purchase_order_id
-	WHERE p.status = 'Accepted'
-	GROUP BY po.purchase_order_id, po."invoiceNumber", po.branch_id, po.supplier_id, po.total_amount, po."createdAt"
-	ORDER BY po.purchase_order_id DESC;
+		SELECT 
+			po.purchase_order_id,
+			po."invoiceNumber" AS invoice_number,
+			po.branch_id,
+			po.supplier_id,
+			po.total_amount,
+			po."createdAt" AS created_at,
+			COALESCE(
+				json_agg(
+					json_build_object(
+						'po_product_id', p.po_product_id,
+						'category_id', p.category_id,
+						'product_description', p.description,
+						'unit_price', p.unit_price,
+						'accepted_quantity', p.accepted_quantity,
+						'accepted_total', p.accepted_total,
+						'status', p.status,
+						'updated_at', p."updatedAt",
+						'updated_by', p."updatedBy"
+					)
+				) FILTER (WHERE p.accepted_quantity::int > 0), '[]'
+			) AS accepted_products
+		FROM "purchaseOrderMgmt"."PurchaseOrders" po
+		LEFT JOIN "purchaseOrderMgmt"."PurchaseOrderProducts" p
+			ON po.purchase_order_id = p.purchase_order_id
+		GROUP BY po.purchase_order_id, po."invoiceNumber", po.branch_id, po.supplier_id, po.total_amount, po."createdAt"
+		ORDER BY po.purchase_order_id DESC;
 	`
 
 	if err := db.Raw(query).Scan(&rawResults).Error; err != nil {
