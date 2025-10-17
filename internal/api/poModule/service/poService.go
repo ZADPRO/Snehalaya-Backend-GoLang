@@ -2,19 +2,56 @@ package poService
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/helper/transactions/service"
 	poModuleModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/poModule/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
+
 )
 
-func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOrderPayload, roleName string) error {
+func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOrderPayload, roleName string) (string, error) {
 	log := logger.InitLogger()
 	log.Info("🛠️ CreatePurchaseOrderService invoked")
 
-	// 1️⃣ Create Purchase Order
+	// ✅ Step 1: Get current month/year
+	now := time.Now()
+	month := now.Month()
+	year := now.Year() % 100 // last two digits
+
+	// ✅ Step 2: Find the last invoice number for this month/year
+	var lastInvoice string
+	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).
+		Select(`"invoiceNumber"`).
+		Where(`"invoiceNumber" LIKE ?`, fmt.Sprintf("POINV-%02d%02d-%%", month, year)).
+		Order(`purchase_order_id DESC`).
+		Limit(1).
+		Scan(&lastInvoice).Error
+
+	if err != nil {
+		log.Error("❌ Failed to fetch last invoice: " + err.Error())
+		return "", err
+	}
+
+	// ✅ Step 3: Extract and increment sequence
+	sequence := 10001
+	if lastInvoice != "" {
+		parts := strings.Split(lastInvoice, "-")
+		if len(parts) == 3 {
+			lastSeq, convErr := strconv.Atoi(parts[2])
+			if convErr == nil {
+				sequence = lastSeq + 1
+			}
+		}
+	}
+
+	// ✅ Step 4: Build new invoice number
+	invoiceNumber := fmt.Sprintf("POINV-%02d%02d-%05d", month, year, sequence)
+
+	// ✅ Step 5: Create Purchase Order
 	po := poModuleModel.PurchaseOrder{
 		SupplierID:    poPayload.Supplier.SupplierId,
 		BranchID:      poPayload.Branch.RefBranchId,
@@ -25,23 +62,21 @@ func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOr
 		TaxAmount:     fmt.Sprintf("%v", poPayload.Summary.TaxAmount),
 		TotalAmount:   fmt.Sprintf("%v", poPayload.Summary.TotalAmount),
 		CreditedDate:  poPayload.CreditedDate,
-		CreatedAt:     time.Now().Format("2006-01-02 15:04:05"),
+		CreatedAt:     now.Format("2006-01-02 15:04:05"),
 		CreatedBy:     roleName,
 		IsDelete:      false,
+		InvoiceNumber: invoiceNumber, // 🧾 Save it here
 	}
 
 	if err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).Create(&po).Error; err != nil {
 		log.Error("❌ Failed to create Purchase Order: " + err.Error())
-		return err
+		return "", err
 	}
 
-	log.Infof("✅ Purchase Order created with ID: %d", po.PurchaseOrderID)
+	log.Infof("✅ Purchase Order created with Invoice: %s (ID: %d)", invoiceNumber, po.PurchaseOrderID)
 
-	// 2️⃣ Insert Products
+	// ✅ Step 6: Insert Products
 	for _, prod := range poPayload.Products {
-		fmt.Printf("DEBUG prod: %+v\n", prod) // shows all fields with names
-		fmt.Printf("UnitPrice type: %T, value: %v\n", prod.UnitPrice, prod.UnitPrice)
-
 		product := poModuleModel.PurchaseOrderProduct{
 			PurchaseOrderID: po.PurchaseOrderID,
 			CategoryID:      prod.CategoryID,
@@ -50,45 +85,88 @@ func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOr
 			Discount:        fmt.Sprintf("%v", prod.Discount),
 			Quantity:        fmt.Sprintf("%v", prod.Quantity),
 			Total:           fmt.Sprintf("%v", prod.Total),
-			CreatedAt:       time.Now().Format("2006-01-02 15:04:05"),
+			CreatedAt:       now.Format("2006-01-02 15:04:05"),
 			CreatedBy:       roleName,
 		}
 
 		if err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderProducts"`).Create(&product).Error; err != nil {
 			log.Error("❌ Failed to insert product: " + err.Error())
-			return err
+			return "", err
 		}
 	}
 
-	transErr := service.LogTransaction(db, 1, "Admin", 2, fmt.Sprintf("PO Created: %d", po.PurchaseOrderID))
+	// ✅ Transaction logging
+	transErr := service.LogTransaction(db, 1, "Admin", 2, fmt.Sprintf("PO Created: %s", invoiceNumber))
 	if transErr != nil {
 		log.Error("Failed to log transaction : " + transErr.Error())
-
 	} else {
 		log.Info("Transaction Log saved Successfully \n\n")
 	}
 
 	log.Info("✅ Purchase Order and Products saved successfully")
-	return nil
+	return invoiceNumber, nil
 }
 
-func GetAllPurchaseOrdersService(db *gorm.DB) []poModuleModel.PurchaseOrderResponse {
+func GetAllPurchaseOrdersService(db *gorm.DB) []poModuleModel.PurchaseOrderPayload {
 	log := logger.InitLogger()
-	var pos []poModuleModel.PurchaseOrderResponse
 
-	err := db.Table("PurchaseOrders AS po").
-		Select(`po.purchase_order_id, po.supplier_id, po.branch_id, po.sub_total, po.total_discount, 
-				po.tax_enabled, po.tax_percentage, po.tax_amount, po.total_amount, po.credited_date,
-				po.createdAt, po.createdBy`).
-		Where("po.isDelete = ?", false).
+	var purchaseOrders []poModuleModel.PurchaseOrderResponse
+	var result []poModuleModel.PurchaseOrderPayload
+
+	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders" AS po`).
+		Select(`po.purchase_order_id, po.supplier_id, po.branch_id, po.sub_total, po.total_discount,
+            po.tax_enabled, po.tax_percentage, po.tax_amount, po.total_amount, po.credited_date,
+            po."createdAt", po."createdBy", po."invoiceNumber"`).
+		Where(`po."isDelete" = ?`, false).
 		Order("po.purchase_order_id DESC").
-		Scan(&pos).Error
+		Scan(&purchaseOrders).Error
 
 	if err != nil {
 		log.Error("❌ Failed to fetch purchase orders: " + err.Error())
+		return result
 	}
 
-	return pos
+	// 2️⃣ For each purchase order, fetch products
+	for _, po := range purchaseOrders {
+		var products []poModuleModel.PurchaseOrderProduct
+
+		err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderProducts"`).
+			Where("purchase_order_id = ?", po.PurchaseOrderID).
+			Scan(&products).Error
+
+		if err != nil {
+			log.Error(fmt.Sprintf("❌ Failed to fetch products for PO #%d: %v", po.PurchaseOrderID, err))
+			continue
+		}
+
+		poPayload := poModuleModel.PurchaseOrderPayload{
+			PurchaseOrderID: po.PurchaseOrderID,
+			InvoiceNumber:   po.InvoiceNumber,
+			Supplier:        struct{ SupplierId int }{SupplierId: po.SupplierID},
+			Branch:          struct{ RefBranchId int }{RefBranchId: po.BranchID},
+			Summary: struct {
+				SubTotal      string `json:"subTotal"`
+				TotalDiscount string `json:"totalDiscount"`
+				TaxEnabled    bool   `json:"taxEnabled"`
+				TaxPercentage string `json:"taxPercentage"`
+				TaxAmount     string `json:"taxAmount"`
+				TotalAmount   string `json:"totalAmount"`
+			}{
+				SubTotal:      po.SubTotal,
+				TotalDiscount: po.TotalDiscount,
+				TaxEnabled:    po.TaxEnabled,
+				TaxPercentage: po.TaxPercentage,
+				TaxAmount:     po.TaxAmount,
+				TotalAmount:   po.TotalAmount,
+			},
+			CreditedDate: po.CreditedDate,
+			Products:     products,
+		}
+
+		result = append(result, poPayload)
+	}
+
+	return result
 }
 
 func UpdatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOrderPayload, roleName string) error {

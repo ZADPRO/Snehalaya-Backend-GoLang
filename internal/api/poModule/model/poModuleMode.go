@@ -16,6 +16,8 @@ type PurchaseOrder struct {
 	UpdatedAt       string                 `gorm:"column:updatedAt" json:"updatedAt"`
 	UpdatedBy       string                 `gorm:"column:updatedBy" json:"updatedBy"`
 	IsDelete        bool                   `gorm:"column:isDelete" json:"isDelete"`
+	InvoiceNumber   string                 `gorm:"column:invoiceNumber" json:"invoiceNumber"`
+	InvoiceStatus   bool                   `gorm:"column:invoiceStatus" json:"invoiceStatus"`
 	Products        []PurchaseOrderProduct `gorm:"-" json:"products"` // transient, not in DB
 }
 
@@ -37,6 +39,7 @@ type PurchaseOrderProduct struct {
 type PurchaseOrderPayload struct {
 	PurchaseOrderID int                       `json:"purchaseOrderId"`
 	Supplier        struct{ SupplierId int }  `json:"supplier"`
+	InvoiceNumber   string                    `json:"invoiceNumber"` // move here
 	Branch          struct{ RefBranchId int } `json:"branch"`
 	Summary         struct {
 		SubTotal      string `json:"subTotal"`
@@ -61,6 +64,7 @@ type PurchaseOrderResponse struct {
 	TaxAmount       string `json:"taxAmount"`
 	TotalAmount     string `json:"totalAmount"`
 	CreditedDate    string `json:"creditedDate"`
+	InvoiceNumber   string `gorm:"column:invoiceNumber" json:"invoiceNumber"`
 	CreatedAt       string `gorm:"column:createdAt" json:"createdAt"`
 	CreatedBy       string `gorm:"column:createdBy" json:"createdBy"`
 }
