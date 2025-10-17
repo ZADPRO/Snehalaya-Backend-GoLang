@@ -10,5 +10,7 @@ func PurchaseOrderProductRoutes(route *gin.Engine) {
 	poGroup := route.Group("/api/v1/admin")
 	{
 		poGroup.POST("/poProductsUpdate", accesstoken.JWTMiddleware(), poController.NewPurchaseOrderController().CreatePurchaseOrderProductsController())
+		poGroup.GET("/acceptedPOs", accesstoken.JWTMiddleware(), poController.NewPurchaseOrderController().GetAcceptedPurchaseOrdersController())
+
 	}
 }

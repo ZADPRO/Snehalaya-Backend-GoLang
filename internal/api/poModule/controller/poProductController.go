@@ -78,3 +78,30 @@ func (p *PurchaseOrderController) CreatePurchaseOrderProductsController() gin.Ha
 		})
 	}
 }
+
+func (p *PurchaseOrderController) GetAcceptedPurchaseOrdersController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		log := logger.InitLogger()
+		log.Info("📦 GetAcceptedPurchaseOrdersController invoked")
+
+		db, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		data, err := poService.GetAcceptedPurchaseOrdersService(db)
+		if err != nil {
+			log.Error("❌ Failed to fetch accepted purchase orders: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to fetch accepted purchase orders",
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Accepted Purchase Orders fetched successfully",
+			"data":    data,
+		})
+	}
+}

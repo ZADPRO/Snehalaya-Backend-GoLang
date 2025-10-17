@@ -47,6 +47,8 @@ type PurchaseOrderProducts struct {
 	AcceptedTotal    string `gorm:"column:accepted_total"`
 	CreatedAt        string `gorm:"column:createdAt"` // 👈 matches DB
 	CreatedBy        string `gorm:"column:createdBy"` // 👈 matches DB
+	UpdatedAt        string `gorm:"column:updatedAt"`
+	UpdatedBy        string `gorm:"column:updatedBy"`
 }
 
 type PurchaseOrderProductInstances struct {
@@ -71,4 +73,26 @@ type RejectedProducts struct {
 	Reason             string `gorm:"column:reason"`
 	CreatedAt          string `gorm:"column:created_at"`
 	CreatedBy          string `gorm:"column:created_by"`
+}
+
+type AcceptedProduct struct {
+	PoProductID   int    `json:"po_product_id"`
+	CategoryID    int    `json:"category_id"`
+	ProductDesc   string `json:"product_description"`
+	UnitPrice     string `json:"unit_price"`
+	AcceptedQty   string `json:"accepted_quantity"`
+	AcceptedTotal string `json:"accepted_total"`
+	Status        string `json:"status"`
+	UpdatedAt     string `json:"updated_at"`
+	UpdatedBy     string `json:"updated_by"`
+}
+
+type AcceptedPOResponse struct {
+	PurchaseOrderID  int               `json:"purchase_order_id"`
+	InvoiceNumber    string            `json:"invoice_number"`
+	BranchID         int               `json:"branch_id"`
+	SupplierID       int               `json:"supplier_id"`
+	TotalAmount      string            `json:"total_amount"`
+	CreatedAt        string            `json:"created_at"`
+	AcceptedProducts []AcceptedProduct `json:"accepted_products"`
 }
