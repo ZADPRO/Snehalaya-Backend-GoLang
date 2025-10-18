@@ -12,27 +12,25 @@ import (
 func GetAllProducts() ([]goshopify.Product, error) {
 	ctx := context.Background()
 	client := shopifyConfig.ShopifyClient
-
 	if client == nil {
 		log.Println("⚠️ Shopify client not initialized")
-		return nil, fmt.Errorf("shopify client not initialized")
+		return nil,
+			fmt.Errorf("shopify client not initialized")
 	}
-
 	log.Println("✅ Shopify client initialized successfully, fetching products...")
-
+	// Example: Count total products (for verification)
 	count, err := client.Product.Count(ctx, nil)
 	if err != nil {
 		log.Printf("❌ Failed to fetch product count: %v\n", err)
 		return nil, err
 	}
 	log.Printf("📦 Total products available: %d\n", count)
-
+	// Fetch all products
 	products, err := client.Product.List(ctx, nil)
 	if err != nil {
 		log.Printf("❌ Error fetching products: %v\n", err)
 		return nil, err
 	}
-
 	log.Printf("✅ Successfully fetched %d products\n", len(products))
 	return products, nil
 }

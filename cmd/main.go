@@ -21,6 +21,7 @@ import (
 	shopfiyRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/shopify/routes"
 	supplierRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/supplierModule/routes"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
+	shopifyConfig "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/shopify"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -41,7 +42,7 @@ func main() {
 	//MIN IO INIT
 	minioConfig.InitMinio()
 	configMinio.InitMinio()
-	// shopifyConfig.InitShopify()
+	shopifyConfig.Init()
 
 	// CORS CONFIG
 	r.Use(cors.New(cors.Config{
