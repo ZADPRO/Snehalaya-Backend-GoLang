@@ -18,14 +18,12 @@ import (
 	purchaseOrderRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/routes"
 	reportRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/reportModule/routes"
 	settingsRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/routes"
-	// shopifyConfig "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/shopify/config"
-	// shopfiyRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/shopify/routes"
+	shopfiyRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/shopify/routes"
 	supplierRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/supplierModule/routes"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-
 )
 
 func main() {
@@ -67,7 +65,7 @@ func main() {
 	posManagementRoutes.POSManagementRoutes(r)
 	reportRoutes.ReportRoutes(r)
 	oldProductRoutes.OldProductMigrationRoutes(r)
-	// shopfiyRoutes.RegisterShopifyRoutes(r)
+	shopfiyRoutes.RegisterShopifyRoutes(r)
 	PORoutes.PurchaseOrderRoutes(r)
 	PORoutes.PurchaseOrderProductRoutes(r)
 	// PING PONG API CALL FOR TESTING

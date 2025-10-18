@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	shopifyConfig "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/shopify/config"
+	shopifyConfig "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/shopify"
 	goshopify "github.com/bold-commerce/go-shopify/v4"
 )
 
