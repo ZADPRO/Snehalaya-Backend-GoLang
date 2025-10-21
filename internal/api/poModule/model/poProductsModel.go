@@ -76,15 +76,17 @@ type RejectedProducts struct {
 }
 
 type AcceptedProduct struct {
-	PoProductID   int    `json:"po_product_id"`
-	CategoryID    int    `json:"category_id"`
-	ProductDesc   string `json:"product_description"`
-	UnitPrice     string `json:"unit_price"`
-	AcceptedQty   string `json:"accepted_quantity"`
-	AcceptedTotal string `json:"accepted_total"`
-	Status        string `json:"status"`
-	UpdatedAt     string `json:"updated_at"`
-	UpdatedBy     string `json:"updated_by"`
+	PoProductID     int    `json:"po_product_id"`
+	CategoryID      int    `json:"category_id"`
+	ProductDesc     string `json:"product_description"`
+	UnitPrice       string `json:"unit_price"`
+	AcceptedQty     string `json:"accepted_quantity"`
+	AcceptedTotal   string `json:"accepted_total"`
+	OrderedQuantity string `json:"ordered_quantity"`
+	OrderedTotal    string `json:"ordered_total"`
+	Status          string `json:"status"`
+	UpdatedAt       string `json:"updated_at"`
+	UpdatedBy       string `json:"updated_by"`
 }
 
 type AcceptedPOResponse struct {

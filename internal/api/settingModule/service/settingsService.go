@@ -1341,12 +1341,14 @@ func CreateEmployeeService(db *gorm.DB, data *model.EmployeePayload) error {
 
 	// 🔍 Step 1: Duplicate check on username, email, or mobile
 	var existingCount int64
-	if err := txn.Table(`"refUserAuthCred"`).
-		Where(`"refUACUsername" = ?`, data.Username).
-		Or(`"refUserId" IN (
-		SELECT "refUserId" FROM "refUserCommunicationDetails"
-		WHERE "refUCDEmail" = ? OR "refUCDMobile" = ?
-	)`, data.Email, data.Mobile).
+	if err := txn.Table(`"refUserAuthCred" AS uac`).
+		Joins(`JOIN "Users" u ON u."refUserId" = uac."refUserId"`).
+		Where(`u."isDelete" = FALSE`).
+		Where(`uac."refUACUsername" = ? 
+		OR u."refUserId" IN (
+			SELECT "refUserId" FROM "refUserCommunicationDetails"
+			WHERE ("refUCDEmail" = ? OR "refUCDMobile" = ?)
+		)`, data.Username, data.Email, data.Mobile).
 		Count(&existingCount).Error; err != nil {
 		txn.Rollback()
 		return fmt.Errorf("error checking for duplicates: %w", err)

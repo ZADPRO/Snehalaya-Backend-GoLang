@@ -198,6 +198,8 @@ func GetAcceptedPurchaseOrdersService(db *gorm.DB) ([]poModuleModel.AcceptedPORe
 						'category_id', p.category_id,
 						'product_description', p.description,
 						'unit_price', p.unit_price,
+						'ordered_quantity', p.quantity,
+						'ordered_total', p.total,
 						'accepted_quantity', p.accepted_quantity,
 						'accepted_total', p.accepted_total,
 						'status', p.status,
