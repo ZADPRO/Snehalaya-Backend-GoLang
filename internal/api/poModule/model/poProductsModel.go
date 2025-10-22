@@ -92,7 +92,7 @@ type AcceptedProduct struct {
 
 type AcceptedPOResponse struct {
 	PurchaseOrderID     int               `json:"purchase_order_id"`
-	PurchaseOrderNumber string            `json:"invoice_number"`
+	PurchaseOrderNumber string            `json:"purchaseOrderNumber"`
 	BranchID            int               `json:"branch_id"`
 	SupplierID          int               `json:"supplier_id"`
 	TotalAmount         string            `json:"total_amount"`

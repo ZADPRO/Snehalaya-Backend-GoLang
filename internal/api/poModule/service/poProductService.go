@@ -8,6 +8,7 @@ import (
 	poModuleModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/poModule/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
+
 )
 
 func CreatePurchaseOrderProductService(db *gorm.DB, poPayload *poModuleModel.PurchaseOrderProductPayload, roleName string) error {
@@ -173,20 +174,20 @@ func GetAcceptedPurchaseOrdersService(db *gorm.DB) ([]poModuleModel.AcceptedPORe
 	log.Info("🧾 Fetching accepted purchase orders...")
 
 	type rawPO struct {
-		PurchaseOrderID     int     `json:"purchase_order_id"`
-		PurchaseOrderNumber string  `json:"invoice_number"`
-		BranchID            int     `json:"branch_id"`
-		SupplierID          int     `json:"supplier_id"`
-		TotalAmount         string  `json:"total_amount"`
-		CreatedAt           string  `json:"created_at"`
-		AcceptedProducts    *string `json:"accepted_products"` // raw JSON string
+		PurchaseOrderID     int     `gorm:"column:purchase_order_id" json:"purchase_order_id"`
+		PurchaseOrderNumber string  `gorm:"column:purchaseOrderNumber" json:"purchaseOrderNumber"`
+		BranchID            int     `gorm:"column:branch_id" json:"branch_id"`
+		SupplierID          int     `gorm:"column:supplier_id" json:"supplier_id"`
+		TotalAmount         string  `gorm:"column:total_amount" json:"total_amount"`
+		CreatedAt           string  `gorm:"column:created_at" json:"created_at"`
+		AcceptedProducts    *string `gorm:"column:accepted_products" json:"accepted_products"`
 	}
 
 	var rawResults []rawPO
 	query := `
 		SELECT 
 			po.purchase_order_id,
-			po."purchaseOrderNumber" AS invoice_number,
+			po."purchaseOrderNumber" AS "purchaseOrderNumber",
 			po.branch_id,
 			po.supplier_id,
 			po.total_amount,
@@ -220,6 +221,7 @@ func GetAcceptedPurchaseOrdersService(db *gorm.DB) ([]poModuleModel.AcceptedPORe
 		return nil, err
 	}
 
+	log.Infof("\n\n\n\n\nrawResults\n\n%+v\n\n\n", rawResults)
 	var finalResults []poModuleModel.AcceptedPOResponse
 	for _, r := range rawResults {
 		var products []poModuleModel.AcceptedProduct
@@ -240,5 +242,6 @@ func GetAcceptedPurchaseOrdersService(db *gorm.DB) ([]poModuleModel.AcceptedPORe
 	}
 
 	log.Infof("✅ Retrieved %d accepted purchase orders", len(finalResults))
+	log.Infof("\n\n\n\nProducts => %+v", finalResults)
 	return finalResults, nil
 }
