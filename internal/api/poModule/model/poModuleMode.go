@@ -1,24 +1,25 @@
 package poModuleModel
 
 type PurchaseOrder struct {
-	PurchaseOrderID int                    `gorm:"primaryKey;column:purchase_order_id" json:"purchase_order_id"`
-	SupplierID      int                    `gorm:"column:supplier_id" json:"supplier_id"`
-	BranchID        int                    `gorm:"column:branch_id" json:"branch_id"`
-	SubTotal        string                 `gorm:"column:sub_total" json:"sub_total"`
-	TotalDiscount   string                 `gorm:"column:total_discount" json:"total_discount"`
-	TaxEnabled      bool                   `gorm:"column:tax_enabled" json:"tax_enabled"`
-	TaxPercentage   string                 `gorm:"column:tax_percentage" json:"tax_percentage"`
-	TaxAmount       string                 `gorm:"column:tax_amount" json:"tax_amount"`
-	TotalAmount     string                 `gorm:"column:total_amount" json:"total_amount"`
-	CreditedDate    string                 `gorm:"column:credited_date" json:"credited_date"`
-	CreatedAt       string                 `gorm:"column:createdAt" json:"createdAt"`
-	CreatedBy       string                 `gorm:"column:createdBy" json:"createdBy"`
-	UpdatedAt       string                 `gorm:"column:updatedAt" json:"updatedAt"`
-	UpdatedBy       string                 `gorm:"column:updatedBy" json:"updatedBy"`
-	IsDelete        bool                   `gorm:"column:isDelete" json:"isDelete"`
-	InvoiceNumber   string                 `gorm:"column:invoiceNumber" json:"invoiceNumber"`
-	InvoiceStatus   bool                   `gorm:"column:invoiceStatus" json:"invoiceStatus"`
-	Products        []PurchaseOrderProduct `gorm:"-" json:"products"` // transient, not in DB
+	PurchaseOrderID     int                    `gorm:"primaryKey;column:purchase_order_id" json:"purchase_order_id"`
+	SupplierID          int                    `gorm:"column:supplier_id" json:"supplier_id"`
+	BranchID            int                    `gorm:"column:branch_id" json:"branch_id"`
+	SubTotal            string                 `gorm:"column:sub_total" json:"sub_total"`
+	TotalDiscount       string                 `gorm:"column:total_discount" json:"total_discount"`
+	TaxEnabled          bool                   `gorm:"column:tax_enabled" json:"tax_enabled"`
+	TaxPercentage       string                 `gorm:"column:tax_percentage" json:"tax_percentage"`
+	TaxAmount           string                 `gorm:"column:tax_amount" json:"tax_amount"`
+	TotalAmount         string                 `gorm:"column:total_amount" json:"total_amount"`
+	CreditedDate        string                 `gorm:"column:credited_date" json:"credited_date"`
+	CreatedAt           string                 `gorm:"column:createdAt" json:"createdAt"`
+	CreatedBy           string                 `gorm:"column:createdBy" json:"createdBy"`
+	UpdatedAt           string                 `gorm:"column:updatedAt" json:"updatedAt"`
+	UpdatedBy           string                 `gorm:"column:updatedBy" json:"updatedBy"`
+	IsDelete            bool                   `gorm:"column:isDelete" json:"isDelete"`
+	PurchaseOrderNumber string                 `gorm:"column:purchaseOrderNumber" json:"purchaseOrderNumber"`
+	InvoiceStatus       bool                   `gorm:"column:invoiceStatus" json:"invoiceStatus"`
+	Products            []PurchaseOrderProduct `gorm:"-" json:"products"`
+	InvoiceFinalNumber  string                 `gorm:"column:invoiceFinalNumber" json:"invoiceFinalNumber"`
 }
 
 type PurchaseOrderProduct struct {
@@ -73,11 +74,11 @@ type InitialCategory struct {
 }
 
 type PurchaseOrderPayload struct {
-	PurchaseOrderID int             `json:"purchaseOrderId"`
-	InvoiceNumber   string          `json:"invoiceNumber"`
-	Supplier        SupplierDetails `json:"supplier"`
-	Branch          BranchDetails   `json:"branch"`
-	Summary         struct {
+	PurchaseOrderID     int             `json:"purchaseOrderId"`
+	PurchaseOrderNumber string          `json:"purchaseOrderNumber"`
+	Supplier            SupplierDetails `json:"supplier"`
+	Branch              BranchDetails   `json:"branch"`
+	Summary             struct {
 		SubTotal      string `json:"subTotal"`
 		TotalDiscount string `json:"totalDiscount"`
 		TaxEnabled    bool   `json:"taxEnabled"`
@@ -109,14 +110,14 @@ type PurchaseOrderResponse struct {
 	IsMainBranch   bool   `gorm:"column:isMainBranch"`   // b.isMainBranch AS isMainBranch
 	IsActive       bool   `gorm:"column:isActive"`       // b.isActive AS isActive
 
-	SubTotal      string `gorm:"column:sub_total"`
-	TotalDiscount string `gorm:"column:total_discount"`
-	TaxEnabled    bool   `gorm:"column:tax_enabled"`
-	TaxPercentage string `gorm:"column:tax_percentage"`
-	TaxAmount     string `gorm:"column:tax_amount"`
-	TotalAmount   string `gorm:"column:total_amount"`
-	CreditedDate  string `gorm:"column:credited_date"`
-	InvoiceNumber string `gorm:"column:invoiceNumber"`
-	CreatedAt     string `gorm:"column:createdAt"`
-	CreatedBy     string `gorm:"column:createdBy"`
+	SubTotal            string `gorm:"column:sub_total"`
+	TotalDiscount       string `gorm:"column:total_discount"`
+	TaxEnabled          bool   `gorm:"column:tax_enabled"`
+	TaxPercentage       string `gorm:"column:tax_percentage"`
+	TaxAmount           string `gorm:"column:tax_amount"`
+	TotalAmount         string `gorm:"column:total_amount"`
+	CreditedDate        string `gorm:"column:credited_date"`
+	PurchaseOrderNumber string `gorm:"column:purchaseOrderNumber"`
+	CreatedAt           string `gorm:"column:createdAt"`
+	CreatedBy           string `gorm:"column:createdBy"`
 }

@@ -10,7 +10,6 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
-
 )
 
 func CreatePurchaseOrderController() gin.HandlerFunc {
@@ -55,7 +54,7 @@ func CreatePurchaseOrderController() gin.HandlerFunc {
 			log.Warn("⚠️ Role name could not be resolved")
 		}
 
-		invoiceNumber, err := poService.CreatePurchaseOrderService(dbConnt, &poPayload, roleName)
+		purchaseOrderNumber, err := poService.CreatePurchaseOrderService(dbConnt, &poPayload, roleName)
 		if err != nil {
 			log.Error("❌ Service Error: " + err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
@@ -65,10 +64,10 @@ func CreatePurchaseOrderController() gin.HandlerFunc {
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
 		c.JSON(http.StatusOK, gin.H{
-			"status":        true,
-			"message":       "Purchase Order created successfully",
-			"invoiceNumber": invoiceNumber, // 🧾 send to frontend
-			"token":         token,
+			"status":              true,
+			"message":             "Purchase Order created successfully",
+			"purchaseOrderNumber": purchaseOrderNumber, // 🧾 send to frontend
+			"token":               token,
 		})
 
 	}

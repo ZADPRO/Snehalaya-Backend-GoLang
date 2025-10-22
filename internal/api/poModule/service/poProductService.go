@@ -18,7 +18,7 @@ func CreatePurchaseOrderProductService(db *gorm.DB, poPayload *poModuleModel.Pur
 	// Step 1️⃣ - Check or Create PO
 	var existingPO poModuleModel.PurchaseOrdersProducts
 	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).
-		Where(`purchase_order_id = ? AND "invoiceNumber" = ?`, poPayload.PoId, poPayload.PoInvoiceNumber).
+		Where(`purchase_order_id = ? AND "purchaseOrderNumber" = ?`, poPayload.PoId, poPayload.PoInvoiceNumber).
 		First(&existingPO).Error
 
 	if err != nil {
@@ -26,15 +26,15 @@ func CreatePurchaseOrderProductService(db *gorm.DB, poPayload *poModuleModel.Pur
 			log.Info("⚠️ No existing PO found, creating new one.")
 
 			newPO := poModuleModel.PurchaseOrdersProducts{
-				PurchaseOrderId: poPayload.PoId,
-				SupplierID:      poPayload.SupplierId,
-				BranchID:        poPayload.BranchId,
-				TotalAmount:     poPayload.TotalAmount,
-				CreditedDate:    time.Now().Format("2006-01-02 15:04:05"),
-				InvoiceNumber:   poPayload.PoInvoiceNumber,
-				InvoiceStatus:   true,
-				CreatedAt:       time.Now().Format("2006-01-02 15:04:05"),
-				CreatedBy:       roleName,
+				PurchaseOrderId:     poPayload.PoId,
+				SupplierID:          poPayload.SupplierId,
+				BranchID:            poPayload.BranchId,
+				TotalAmount:         poPayload.TotalAmount,
+				CreditedDate:        time.Now().Format("2006-01-02 15:04:05"),
+				PurchaseOrderNumber: poPayload.PoInvoiceNumber,
+				InvoiceStatus:       true,
+				CreatedAt:           time.Now().Format("2006-01-02 15:04:05"),
+				CreatedBy:           roleName,
 			}
 
 			if err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).Create(&newPO).Error; err != nil {
@@ -173,20 +173,20 @@ func GetAcceptedPurchaseOrdersService(db *gorm.DB) ([]poModuleModel.AcceptedPORe
 	log.Info("🧾 Fetching accepted purchase orders...")
 
 	type rawPO struct {
-		PurchaseOrderID  int     `json:"purchase_order_id"`
-		InvoiceNumber    string  `json:"invoice_number"`
-		BranchID         int     `json:"branch_id"`
-		SupplierID       int     `json:"supplier_id"`
-		TotalAmount      string  `json:"total_amount"`
-		CreatedAt        string  `json:"created_at"`
-		AcceptedProducts *string `json:"accepted_products"` // raw JSON string
+		PurchaseOrderID     int     `json:"purchase_order_id"`
+		PurchaseOrderNumber string  `json:"invoice_number"`
+		BranchID            int     `json:"branch_id"`
+		SupplierID          int     `json:"supplier_id"`
+		TotalAmount         string  `json:"total_amount"`
+		CreatedAt           string  `json:"created_at"`
+		AcceptedProducts    *string `json:"accepted_products"` // raw JSON string
 	}
 
 	var rawResults []rawPO
 	query := `
 		SELECT 
 			po.purchase_order_id,
-			po."invoiceNumber" AS invoice_number,
+			po."purchaseOrderNumber" AS invoice_number,
 			po.branch_id,
 			po.supplier_id,
 			po.total_amount,
@@ -211,7 +211,7 @@ func GetAcceptedPurchaseOrdersService(db *gorm.DB) ([]poModuleModel.AcceptedPORe
 		FROM "purchaseOrderMgmt"."PurchaseOrders" po
 		LEFT JOIN "purchaseOrderMgmt"."PurchaseOrderProducts" p
 			ON po.purchase_order_id = p.purchase_order_id
-		GROUP BY po.purchase_order_id, po."invoiceNumber", po.branch_id, po.supplier_id, po.total_amount, po."createdAt"
+		GROUP BY po.purchase_order_id, po."purchaseOrderNumber", po.branch_id, po.supplier_id, po.total_amount, po."createdAt"
 		ORDER BY po.purchase_order_id DESC;
 	`
 
@@ -229,13 +229,13 @@ func GetAcceptedPurchaseOrdersService(db *gorm.DB) ([]poModuleModel.AcceptedPORe
 			}
 		}
 		finalResults = append(finalResults, poModuleModel.AcceptedPOResponse{
-			PurchaseOrderID:  r.PurchaseOrderID,
-			InvoiceNumber:    r.InvoiceNumber,
-			BranchID:         r.BranchID,
-			SupplierID:       r.SupplierID,
-			TotalAmount:      r.TotalAmount,
-			CreatedAt:        r.CreatedAt,
-			AcceptedProducts: products,
+			PurchaseOrderID:     r.PurchaseOrderID,
+			PurchaseOrderNumber: r.PurchaseOrderNumber,
+			BranchID:            r.BranchID,
+			SupplierID:          r.SupplierID,
+			TotalAmount:         r.TotalAmount,
+			CreatedAt:           r.CreatedAt,
+			AcceptedProducts:    products,
 		})
 	}
 

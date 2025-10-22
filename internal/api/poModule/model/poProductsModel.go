@@ -21,17 +21,18 @@ type ProductPayloadProducts struct {
 }
 
 type PurchaseOrdersProducts struct {
-	PurchaseOrderId int    `gorm:"column:purchase_order_id;primaryKey"`
-	SupplierID      int    `gorm:"column:supplier_id"`
-	BranchID        int    `gorm:"column:branch_id"`
-	TotalAmount     string `gorm:"column:total_amount"`
-	CreditedDate    string `gorm:"column:credited_date"`
-	InvoiceNumber   string `gorm:"column:invoiceNumber"` // 👈 match exact DB column
-	InvoiceStatus   bool   `gorm:"column:invoiceStatus"` // 👈 match exact DB column
-	CreatedAt       string `gorm:"column:createdAt"`
-	CreatedBy       string `gorm:"column:createdBy"`
-	UpdatedAt       string `gorm:"column:updatedAt"`
-	UpdatedBy       string `gorm:"column:updatedBy"`
+	PurchaseOrderId     int    `gorm:"column:purchase_order_id;primaryKey"`
+	SupplierID          int    `gorm:"column:supplier_id"`
+	BranchID            int    `gorm:"column:branch_id"`
+	TotalAmount         string `gorm:"column:total_amount"`
+	CreditedDate        string `gorm:"column:credited_date"`
+	PurchaseOrderNumber string `gorm:"column:purchaseOrderNumber"` // 👈 match exact DB column
+	InvoiceStatus       bool   `gorm:"column:invoiceStatus"`       // 👈 match exact DB column
+	CreatedAt           string `gorm:"column:createdAt"`
+	CreatedBy           string `gorm:"column:createdBy"`
+	UpdatedAt           string `gorm:"column:updatedAt"`
+	UpdatedBy           string `gorm:"column:updatedBy"`
+	InvoiceFinalNumber  string `gorm:"column:invoiceFinalNumber" json:"invoiceFinalNumber"`
 }
 
 type PurchaseOrderProducts struct {
@@ -90,11 +91,11 @@ type AcceptedProduct struct {
 }
 
 type AcceptedPOResponse struct {
-	PurchaseOrderID  int               `json:"purchase_order_id"`
-	InvoiceNumber    string            `json:"invoice_number"`
-	BranchID         int               `json:"branch_id"`
-	SupplierID       int               `json:"supplier_id"`
-	TotalAmount      string            `json:"total_amount"`
-	CreatedAt        string            `json:"created_at"`
-	AcceptedProducts []AcceptedProduct `json:"accepted_products"`
+	PurchaseOrderID     int               `json:"purchase_order_id"`
+	PurchaseOrderNumber string            `json:"invoice_number"`
+	BranchID            int               `json:"branch_id"`
+	SupplierID          int               `json:"supplier_id"`
+	TotalAmount         string            `json:"total_amount"`
+	CreatedAt           string            `json:"created_at"`
+	AcceptedProducts    []AcceptedProduct `json:"accepted_products"`
 }
