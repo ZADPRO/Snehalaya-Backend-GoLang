@@ -12,6 +12,7 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	goshopify "github.com/bold-commerce/go-shopify/v4"
 	"github.com/gin-gonic/gin"
+
 )
 
 func GetShopifyProducts(ctx *gin.Context) {
@@ -51,7 +52,7 @@ func OrderCreationWebhook() gin.HandlerFunc {
 			return
 		}
 
-		log.Info("\n\n\nOrder body", body)
+		log.Info("\n\n\nOrder body", string(body))
 
 		// ✅ Log file path
 		logFile := "shopify_orders.log"
