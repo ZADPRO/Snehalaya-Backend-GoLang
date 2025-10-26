@@ -214,16 +214,13 @@ func DeleteInitialCategoryController() gin.HandlerFunc {
 	log := logger.InitLogger()
 
 	return func(c *gin.Context) {
-		log.Info("\n\n\nDelete Initial Category Controller Invoked")
+		log.Info("🗑️ Bulk Delete Initial Categories Controller Invoked")
 
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
 		branchIdValue, branchIdExists := c.Get("branchId")
 
-		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v", idValue, roleIdValue, branchIdValue)
-
 		if !idExists || !roleIdExists || !branchIdExists {
-			log.Warn("❌ Missing user/role/branch information in context")
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"status":  false,
 				"message": "User ID, RoleID, Branch ID not found in request context.",
@@ -231,40 +228,45 @@ func DeleteInitialCategoryController() gin.HandlerFunc {
 			return
 		}
 
-		id := c.Param("id")
+		var payload struct {
+			IDs []string `json:"ids"`
+		}
+
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("Invalid JSON: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid request body"})
+			return
+		}
+
+		if len(payload.IDs) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "No IDs provided"})
+			return
+		}
 
 		dbConnt, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
 		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
 		if err != nil {
-			log.Error("❌ Invalid role ID: " + err.Error())
 			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
 			return
 		}
 
-		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
-		if err != nil {
-			log.Error("🔍 Failed to get role name: " + err.Error())
-		} else {
-			log.Infof("✅ Role Name resolved: %s", roleName)
-		}
+		roleName, _ := roleType.GetRoleTypeNameByID(dbConnt, roleId)
 
-		if err := settingsService.DeleteInitialCategoryService(dbConnt, id, roleName); err != nil {
-			log.Error("Service error: " + err.Error())
+		if err := settingsService.DeleteInitialCategoriesBulkService(dbConnt, payload.IDs, roleName); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  false,
-				"message": "Failed to delete initial category",
+				"message": "Failed to delete initial categories",
 			})
 			return
 		}
 
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
-		log.Info("Initial category deleted successfully")
 		c.JSON(http.StatusOK, gin.H{
 			"status":  true,
-			"message": "Initial category deleted successfully",
+			"message": "Initial categories deleted successfully",
 			"token":   token,
 		})
 	}

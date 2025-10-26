@@ -118,28 +118,60 @@ func UpdateInitialCategoryService(db *gorm.DB, initialCategory *model.InitialCat
 	return err
 }
 
-func DeleteInitialCategoryService(db *gorm.DB, id string, roleName string) error {
+func DeleteInitialCategoriesBulkService(db *gorm.DB, ids []string, roleName string) error {
 	log := logger.InitLogger()
-	log.Info("Soft Deleting - Initial Category With ID %s", id)
-	err := db.Table("InitialCategories").
-		Where(`"initialCategoryId" = ?`, id).
-		Updates(map[string]interface{}{
-			"isDelete":  true,
-			"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
-			"updatedBy": roleName,
-		}).Error
-
-	if err != nil {
-		log.Error("Failed to soft delete initial category : " + err.Error())
+	if len(ids) == 0 {
+		log.Warn("DeleteInitialCategoriesBulkService called with empty ids slice")
+		return fmt.Errorf("no ids provided")
 	}
 
-	log.Info("Initial Category Soft Deleted Successfully")
-	// Log transaction
-	transErr := transactionLogger.LogTransaction(db, 1, "Admin", 4, "Initial Category Deleted: "+id)
+	log.Infof("Soft deleting %d Initial Categories: %v", len(ids), ids)
+
+	dbg := db
+
+	updates := map[string]interface{}{
+		"isDelete":  true,
+		"updatedAt": time.Now().Format("2006-01-02 15:04:05"),
+		"updatedBy": roleName,
+	}
+
+	// ✅ Use quoted identifiers for Postgres
+	res := dbg.Table(`"InitialCategories"`).
+		Where(`"initialCategoryId" IN (?)`, ids).
+		Updates(updates)
+
+	if res.Error != nil {
+		log.Error("Failed to soft delete initial categories: " + res.Error.Error())
+		return res.Error
+	}
+
+	if res.RowsAffected == 0 {
+		log.Warnf("No rows affected for IDs %v. RowsAffected = 0", ids)
+
+		var found []map[string]interface{}
+		selectRes := dbg.Table(`"InitialCategories"`).
+			Select(`"initialCategoryId", "initialCategoryName", "isDelete"`).
+			Where(`"initialCategoryId" IN (?)`, ids).
+			Find(&found)
+		if selectRes.Error != nil {
+			log.Error("Failed to query initial categories for debug: " + selectRes.Error.Error())
+		} else {
+			log.Infof("Debug - matched rows: %+v", found)
+		}
+
+		return fmt.Errorf("no rows updated - check provided ids and their types")
+	}
+
+	log.Infof("Soft deleted %d initial categories (RowsAffected=%d)", res.RowsAffected, res.RowsAffected)
+
+	transErr := transactionLogger.LogTransaction(
+		db, 1, "Admin", 4,
+		fmt.Sprintf("Initial Categories Deleted: %v", ids),
+	)
 	if transErr != nil {
-		log.Error("⚠️ Failed to log transaction: " + transErr.Error())
+		log.Warn("Failed to log transaction: " + transErr.Error())
 	} else {
-		log.Info("📘 Transaction log saved successfully")
+		log.Info("Transaction log saved for delete operation")
 	}
 
 	return nil
