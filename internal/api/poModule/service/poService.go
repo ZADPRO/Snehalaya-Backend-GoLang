@@ -247,74 +247,97 @@ func UpdatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOr
 	log.Info("✅ PO updated successfully")
 	return nil
 }
-
 func GetAllPurchaseOrdersListService(db *gorm.DB) ([]poModuleModel.PurchaseOrderListResponse, error) {
 	log := logger.InitLogger()
 	log.Info("📦 GetAllPurchaseOrdersService invoked")
 
-	query := `
-SELECT 
-    po.purchase_order_id AS purchase_order_id,
-    po."purchaseOrderNumber" AS purchase_order_number,
-    CASE 
-        WHEN po."invoiceStatus" = true THEN 'Approved'
-        WHEN po."invoiceStatus" = false THEN 'Created'
-        ELSE 'Created'
-    END AS status,
+	// Step 1: Fetch all purchase orders (same as before)
+	orderQuery := `
+	SELECT 
+		po.purchase_order_id,
+		po."purchaseOrderNumber" AS purchase_order_number,
+		CASE 
+			WHEN po."invoiceStatus" = true THEN 'Approved'
+			WHEN po."invoiceStatus" = false THEN 'Created'
+			ELSE 'Created'
+		END AS status,
+		COALESCE(SUM(CAST(pop.quantity AS BIGINT)), 0) AS total_ordered_quantity,
+		COALESCE(SUM(CAST(pop.accepted_quantity AS BIGINT)), 0) AS total_accepted_quantity,
+		COALESCE(SUM(CAST(pop.rejected_quantity AS BIGINT)), 0) AS total_rejected_quantity,
+		po.total_amount,
+		po."createdAt" AS created_at, 
+		po.tax_amount AS taxable_amount,
+		po.supplier_id,
+    	s."supplierName" AS supplier_name,                    -- ✅ snake_case alias
+		po.branch_id,
+		b."refBranchName" AS branch_name
+	FROM "purchaseOrderMgmt"."PurchaseOrders" po
+	LEFT JOIN "purchaseOrderMgmt"."PurchaseOrderProducts" pop 
+		ON po.purchase_order_id = pop.purchase_order_id
+	LEFT JOIN public."Supplier" s 
+		ON po.supplier_id = s."supplierId"
+	LEFT JOIN public."Branches" b 
+		ON po.branch_id = b."refBranchId"
+	WHERE (po."isDelete" IS NULL OR po."isDelete" = false)
+	GROUP BY 
+		po.purchase_order_id, 
+		po."purchaseOrderNumber", 
+		po."invoiceStatus", 
+		po.total_amount, 
+		po."createdAt", 
+		po.tax_amount, 
+		po.supplier_id,
+		po.branch_id,
+		s."supplierName", 
+		b."refBranchName"
+	ORDER BY po.purchase_order_id DESC;
+	`
 
-    -- 🧮 Quantities
-    COALESCE(SUM(CAST(pop.quantity AS BIGINT)), 0) AS total_ordered_quantity,
-    COALESCE(SUM(CAST(pop.accepted_quantity AS BIGINT)), 0) AS total_accepted_quantity,
-    COALESCE(SUM(CAST(pop.rejected_quantity AS BIGINT)), 0) AS total_rejected_quantity,
-
-    -- 💰 Totals
-    po.total_amount AS total_amount,
-    po."createdAt" AS created_at,
-    po.tax_amount AS taxable_amount,
-
-    -- 🏷️ IDs
-    po.supplier_id AS supplier_id,
-    po.branch_id AS branch_id,
-
-    -- 🔗 Joins
-    s."supplierName" AS supplier_name,
-    b."refBranchName" AS branch_name
-
-FROM "purchaseOrderMgmt"."PurchaseOrders" po
-LEFT JOIN "purchaseOrderMgmt"."PurchaseOrderProducts" pop 
-    ON po.purchase_order_id = pop.purchase_order_id
-LEFT JOIN public."Supplier" s 
-    ON po.supplier_id = s."supplierId"
-LEFT JOIN public."Branches" b 
-    ON po.branch_id = b."refBranchId"
-
-WHERE (po."isDelete" IS NULL OR po."isDelete" = false)
-
-GROUP BY 
-    po.purchase_order_id, 
-    po."purchaseOrderNumber", 
-    po."invoiceStatus", 
-    po.total_amount, 
-    po."createdAt", 
-    po.tax_amount, 
-    po.supplier_id,
-    po.branch_id,
-    s."supplierName", 
-    b."refBranchName"
-
-ORDER BY po.purchase_order_id DESC;
-
-`
-
-	log.Infof("🧾 Executing Query:\n%s", query)
-
-	var results []poModuleModel.PurchaseOrderListResponse
-	if err := db.Raw(query).Scan(&results).Error; err != nil {
-		log.Errorf("❌ Query execution failed: %v", err)
+	var orders []poModuleModel.PurchaseOrderListResponse
+	if err := db.Raw(orderQuery).Scan(&orders).Error; err != nil {
+		log.Errorf("❌ Failed to fetch purchase orders: %v", err)
 		return nil, err
 	}
 
-	log.Infof("✅ %d Purchase Orders fetched successfully", len(results))
-	log.Infof("\n\nproducts", results)
-	return results, nil
+	// Step 2: For each order, fetch products + category details
+	for i := range orders {
+		productQuery := `
+			SELECT 
+				pop.po_product_id,
+				pop.purchase_order_id,
+				pop.category_id,
+				pop.description,
+				pop.unit_price,
+				pop.discount,
+				pop.quantity,
+				pop.total,
+				pop."createdAt",
+				pop."createdBy",
+				pop."updatedAt",
+				pop."updatedBy",
+				ic."initialCategoryId" AS "categoryDetails.initialCategoryId",
+				ic."initialCategoryName" AS "categoryDetails.initialCategoryName",
+				ic."initialCategoryCode" AS "categoryDetails.initialCategoryCode",
+				ic."isDelete" AS "categoryDetails.isDelete",
+				ic."createdAt" AS "categoryDetails.createdAt",
+				ic."createdBy" AS "categoryDetails.createdBy",
+				ic."updatedAt" AS "categoryDetails.updatedAt",
+				ic."updatedBy" AS "categoryDetails.updatedBy"
+			FROM "purchaseOrderMgmt"."PurchaseOrderProducts" pop
+			LEFT JOIN public."InitialCategories" ic 
+				ON pop.category_id = ic."initialCategoryId"
+			WHERE pop.purchase_order_id = ?
+			ORDER BY pop.po_product_id ASC;
+		`
+
+		var products []poModuleModel.PurchaseOrderProductLatest
+		if err := db.Raw(productQuery, orders[i].PurchaseOrderId).Scan(&products).Error; err != nil {
+			log.Errorf("❌ Failed to fetch products for PO ID %d: %v", orders[i].PurchaseOrderId, err)
+			continue
+		}
+		orders[i].Products = products
+	}
+
+	log.Infof("✅ %d Purchase Orders fetched successfully", len(orders))
+	return orders, nil
 }

@@ -122,18 +122,124 @@ type PurchaseOrderResponse struct {
 	CreatedBy           string `gorm:"column:createdBy"`
 }
 
+// type PurchaseOrderListResponse struct {
+// 	PurchaseOrderID     int64  `json:"purchase_order_id" db:"purchase_order_id"`
+// 	PurchaseOrderNumber string `json:"purchase_order_number" db:"purchase_order_number"`
+// 	Status              string `json:"status" db:"status"`
+
+// 	// Quantities
+// 	TotalOrderedQuantity  int64 `json:"total_ordered_quantity" db:"total_ordered_quantity"`
+// 	TotalAcceptedQuantity int64 `json:"total_accepted_quantity" db:"total_accepted_quantity"`
+// 	TotalRejectedQuantity int64 `json:"total_rejected_quantity" db:"total_rejected_quantity"`
+
+// 	// Totals
+// 	TotalAmount   float64 `json:"total_amount" db:"total_amount"`
+// 	TaxableAmount float64 `json:"taxable_amount" db:"taxable_amount"`
+
+// 	CreatedAt string `json:"created_at" db:"created_at"`
+
+// 	// Supplier & Branch
+// 	SupplierID   int64  `json:"supplier_id" db:"supplier_id"`
+// 	BranchID     int64  `json:"branch_id" db:"branch_id"`
+// 	SupplierName string `json:"supplier_name" db:"supplier_name"`
+// 	BranchName   string `json:"branch_name" db:"branch_name"`
+
+// 	// Category & Product Info
+// 	Description         string `json:"description" db:"description"`
+// 	InitialCategoryID   int64  `json:"initial_category_id" db:"initial_category_id"`
+// 	InitialCategoryName string `json:"initial_category_name" db:"initial_category_name"`
+
+// 	// Product-level breakdown
+// 	ProductOrderedQuantity  int64 `json:"product_ordered_quantity" db:"product_ordered_quantity"`
+// 	ProductAcceptedQuantity int64 `json:"product_accepted_quantity" db:"product_accepted_quantity"`
+// 	ProductRejectedQuantity int64 `json:"product_rejected_quantity" db:"product_rejected_quantity"`
+// }
+
+type PurchaseOrderListResponseFlat struct {
+	PurchaseOrderID       int
+	PurchaseOrderNumber   string
+	Status                string
+	TotalOrderedQuantity  int
+	TotalAcceptedQuantity int
+	TotalRejectedQuantity int
+	TotalAmount           float64
+	TaxableAmount         float64
+	CreatedAt             string
+	SupplierID            int
+	SupplierName          string
+	BranchID              int
+	BranchName            string
+	POProductID           int
+	Description           string
+	CategoryID            int
+	UnitPrice             string
+	Discount              string
+	Quantity              string
+	Total                 string
+	ProductCreatedAt      string
+	ProductCreatedBy      string
+	ProductUpdatedAt      string
+	ProductUpdatedBy      string
+	InitialCategoryID     int
+	InitialCategoryName   string
+	InitialCategoryCode   string
+	IsDelete              bool
+	CatCreatedAt          string
+	CatCreatedBy          string
+	CatUpdatedAt          string
+	CatUpdatedBy          string
+}
+
+type CategoryDetails struct {
+	InitialCategoryId   int     `json:"initialCategoryId"`
+	InitialCategoryName string  `json:"initialCategoryName"`
+	InitialCategoryCode string  `json:"initialCategoryCode"`
+	IsDelete            *bool   `json:"isDelete"`
+	CreatedAt           *string `json:"createdAt"`
+	CreatedBy           *string `json:"createdBy"`
+	UpdatedAt           *string `json:"updatedAt"`
+	UpdatedBy           *string `json:"updatedBy"`
+}
+
+type PurchaseOrderProductLatest struct {
+	PoProductId     int    `json:"poProductId"`
+	PurchaseOrderId int    `json:"purchaseOrderId"`
+	CategoryId      int    `json:"categoryId"`
+	Description     string `json:"description"`
+	UnitPrice       string `json:"unitPrice"`
+	Discount        string `json:"discount"`
+	Quantity        string `json:"quantity"`
+	Total           string `json:"total"`
+	CreatedAt       string `json:"createdAt"`
+	CreatedBy       string `json:"createdBy"`
+	UpdatedAt       string `json:"updatedAt"`
+	UpdatedBy       string `json:"updatedBy"`
+
+	InitialCategoryId   int     `json:"-"` // hidden in JSON
+	InitialCategoryName string  `json:"-"`
+	InitialCategoryCode string  `json:"-"`
+	IsDelete            *bool   `json:"-"`
+	CategoryCreatedAt   *string `json:"-"`
+	CategoryCreatedBy   *string `json:"-"`
+	CategoryUpdatedAt   *string `json:"-"`
+	CategoryUpdatedBy   *string `json:"-"`
+
+	CategoryDetails CategoryDetails `json:"categoryDetails" gorm:"-"`
+}
+
 type PurchaseOrderListResponse struct {
-	PurchaseOrderID       int64  `json:"purchase_order_id" gorm:"column:purchase_order_id"`
-	PurchaseOrderNumber   string `json:"purchase_order_number" gorm:"column:purchase_order_number"`
-	Status                string `json:"status" gorm:"column:status"`
-	TotalOrderedQuantity  int64  `json:"total_ordered_quantity" gorm:"column:total_ordered_quantity"`
-	TotalAcceptedQuantity int64  `json:"total_accepted_quantity" gorm:"column:total_accepted_quantity"`
-	TotalRejectedQuantity int64  `json:"total_rejected_quantity" gorm:"column:total_rejected_quantity"`
-	TotalAmount           string `json:"total_amount" gorm:"column:total_amount"`
-	CreatedAt             string `json:"created_at" gorm:"column:created_at"`
-	TaxableAmount         string `json:"taxable_amount" gorm:"column:taxable_amount"`
-	SupplierID            int64  `json:"supplier_id" gorm:"column:supplier_id"`
-	BranchID              int64  `json:"branch_id" gorm:"column:branch_id"`
-	SupplierName          string `json:"supplier_name" gorm:"column:supplier_name"`
-	BranchName            string `json:"branch_name" gorm:"column:branch_name"`
+	PurchaseOrderId       int                          `json:"purchaseOrderId"`
+	PurchaseOrderNumber   string                       `json:"purchaseOrderNumber"`
+	Status                string                       `json:"status"`
+	TotalOrderedQuantity  int64                        `json:"totalOrderedQuantity"`
+	TotalAcceptedQuantity int64                        `json:"totalAcceptedQuantity"`
+	TotalRejectedQuantity int64                        `json:"totalRejectedQuantity"`
+	TotalAmount           string                       `json:"totalAmount"`
+	CreatedAt             string                       `json:"createdAt"`
+	TaxableAmount         string                       `json:"taxableAmount"`
+	SupplierId            int                          `json:"supplierId"`
+	SupplierName          string                       `json:"supplierName"`
+	BranchId              int                          `json:"branchId"`
+	BranchName            string                       `json:"branchName"`
+	Products              []PurchaseOrderProductLatest `json:"products" gorm:"-"` // ✅ correct
 }
