@@ -12,6 +12,7 @@ import (
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
+
 )
 
 // INITIAL CATEGORY SERVICES
@@ -814,16 +815,24 @@ func GetBranchWithFloorsService(db *gorm.DB, branchIdStr string) ([]model.Branch
 	log.Info("🛠️ GetBranchWithFloorsService invoked")
 
 	var rows []struct {
-		RefBranchId      int    `gorm:"column:ref_branch_id"`
-		RefBranchName    string `gorm:"column:ref_branch_name"`
-		RefBranchCode    string `gorm:"column:ref_branch_code"`
-		RefLocation      string `gorm:"column:ref_location"`
-		RefMobile        string `gorm:"column:ref_mobile"`
-		RefEmail         string `gorm:"column:ref_email"`
-		IsMainBranch     bool   `gorm:"column:is_main_branch"`
-		IsActive         bool   `gorm:"column:is_active"`
-		IsOnline         bool   `gorm:"column:is_online"`
-		IsOffline        bool   `gorm:"column:is_offline"`
+		RefBranchId   int    `gorm:"column:ref_branch_id"`
+		RefBranchName string `gorm:"column:ref_branch_name"`
+		RefBranchCode string `gorm:"column:ref_branch_code"`
+		RefLocation   string `gorm:"column:ref_location"`
+		RefMobile     string `gorm:"column:ref_mobile"`
+		RefEmail      string `gorm:"column:ref_email"`
+		IsMainBranch  bool   `gorm:"column:is_main_branch"`
+		IsActive      bool   `gorm:"column:is_active"`
+		IsOnline      bool   `gorm:"column:is_online"`
+		IsOffline     bool   `gorm:"column:is_offline"`
+
+		// ✅ Add these missing address fields
+		RefBranchDoorNo  string `gorm:"column:refBranchDoorNo"`
+		RefBranchStreet  string `gorm:"column:refBranchStreet"`
+		RefBranchCity    string `gorm:"column:refBranchCity"`
+		RefBranchState   string `gorm:"column:refBranchState"`
+		RefBranchPincode string `gorm:"column:refBranchPincode"`
+
 		RefFloorId       int    `gorm:"column:ref_floor_id"`
 		RefFloorName     string `gorm:"column:ref_floor_name"`
 		RefFloorCode     string `gorm:"column:ref_floor_code"`
@@ -846,6 +855,11 @@ func GetBranchWithFloorsService(db *gorm.DB, branchIdStr string) ([]model.Branch
 			br."isActive"         AS "is_active",
 			br."isOnline"         AS "is_online",
 			br."isOffline"        AS "is_offline",
+			br."refBranchDoorNo"  AS "refBranchDoorNo",
+			br."refBranchStreet"  AS "refBranchStreet",
+			br."refBranchCity"    AS "refBranchCity",
+			br."refBranchState"   AS "refBranchState",
+			br."refBranchPincode" AS "refBranchPincode",
 			rf."refFloorId"       AS "ref_floor_id",
 			rf."refFloorName"     AS "ref_floor_name",
 			rf."refFloorCode"     AS "ref_floor_code",
@@ -881,18 +895,24 @@ func GetBranchWithFloorsService(db *gorm.DB, branchIdStr string) ([]model.Branch
 		if _, exists := branchMap[r.RefBranchId]; !exists {
 			log.Infof("🏢 Creating new branch: ID=%d, Name=%s", r.RefBranchId, r.RefBranchName)
 			branch := model.BranchResponse{
-				RefBranchId:   r.RefBranchId,
-				RefBranchName: r.RefBranchName,
-				RefBranchCode: r.RefBranchCode,
-				RefLocation:   r.RefLocation,
-				RefMobile:     r.RefMobile,
-				RefEmail:      r.RefEmail,
-				IsMainBranch:  r.IsMainBranch,
-				IsActive:      r.IsActive,
-				IsOnline:      r.IsOnline,
-				IsOffline:     r.IsOffline,
-				Floors:        []model.FloorResponse{},
+				RefBranchId:      r.RefBranchId,
+				RefBranchName:    r.RefBranchName,
+				RefBranchCode:    r.RefBranchCode,
+				RefLocation:      r.RefLocation,
+				RefMobile:        r.RefMobile,
+				RefEmail:         r.RefEmail,
+				IsMainBranch:     r.IsMainBranch,
+				IsActive:         r.IsActive,
+				IsOnline:         r.IsOnline,
+				IsOffline:        r.IsOffline,
+				RefBranchDoorNo:  r.RefBranchDoorNo,
+				RefBranchStreet:  r.RefBranchStreet,
+				RefBranchCity:    r.RefBranchCity,
+				RefBranchState:   r.RefBranchState,
+				RefBranchPincode: r.RefBranchPincode,
+				Floors:           []model.FloorResponse{},
 			}
+
 			branchMap[r.RefBranchId] = &branch
 		}
 

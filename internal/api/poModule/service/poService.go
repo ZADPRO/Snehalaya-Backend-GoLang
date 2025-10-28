@@ -25,7 +25,7 @@ func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOr
 	var lastInvoice string
 	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).
 		Select(`"purchaseOrderNumber"`).
-		Where(`"purchaseOrderNumber" LIKE ?`, fmt.Sprintf("POINV-%02d%02d-%%", month, year)).
+		Where(`"purchaseOrderNumber" LIKE ?`, fmt.Sprintf("PO-%02d%02d-%%", month, year)).
 		Order(`purchase_order_id DESC`).
 		Limit(1).
 		Scan(&lastInvoice).Error
@@ -48,7 +48,7 @@ func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOr
 	}
 
 	// ✅ Step 4: Build new invoice number
-	purchaseOrderNumber := fmt.Sprintf("POINV-%02d%02d-%05d", month, year, sequence)
+	purchaseOrderNumber := fmt.Sprintf("PO-%02d%02d-%05d", month, year, sequence)
 
 	// ✅ Step 5: Create Purchase Order
 	po := poModuleModel.PurchaseOrder{

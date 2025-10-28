@@ -27,6 +27,7 @@ type Supplier struct {
 	UpdatedBy              string `json:"updatedBy" gorm:"column:updatedBy"`
 	IsDelete               bool   `json:"isDelete" gorm:"column:isDelete"`
 	CreditedDays           int    `json:"creditedDays" gorm:"column:creditedDays"`
+	Pincode                string `json:"pincode" gorm:"column:pincode"`
 }
 
 type BulkDeleteRequest struct {

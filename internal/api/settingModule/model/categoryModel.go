@@ -77,22 +77,27 @@ type Branch struct {
 }
 
 type BranchWithFloor struct {
-	RefBranchId   int    `gorm:"column:refBranchId;primaryKey;autoIncrement"`
-	RefBranchName string `gorm:"column:refBranchName" json:"refBranchName"`
-	RefBranchCode string `gorm:"column:refBranchCode" json:"refBranchCode"`
-	RefLocation   string `gorm:"column:refLocation" json:"refLocation"`
-	RefMobile     string `gorm:"column:refMobile" json:"refMobile"`
-	RefEmail      string `gorm:"column:refEmail" json:"refEmail"`
-	IsMainBranch  bool   `gorm:"column:isMainBranch" json:"isMainBranch"`
-	IsActive      bool   `gorm:"column:isActive" json:"isActive"`
-	RefBTId       int    `gorm:"column:refBTId" json:"refBTId"`
-	CreatedAt     string `gorm:"column:createdAt" json:"createdAt"`
-	CreatedBy     string `gorm:"column:createdBy" json:"createdBy"`
-	UpdatedAt     string `gorm:"column:updatedAt" json:"updatedAt"`
-	UpdatedBy     string `gorm:"column:updatedBy" json:"updatedBy"`
-	IsDelete      bool   `gorm:"column:isDelete" json:"isDelete"`
-	IsOnline      bool   `gorm:"column:isOnline" json:"isOnline"`
-	IsOffline     bool   `gorm:"column:isOffline" json:"isOffline"`
+	RefBranchId      int    `gorm:"column:refBranchId;primaryKey;autoIncrement"`
+	RefBranchName    string `gorm:"column:refBranchName" json:"refBranchName"`
+	RefBranchCode    string `gorm:"column:refBranchCode" json:"refBranchCode"`
+	RefLocation      string `gorm:"column:refLocation" json:"refLocation"`
+	RefMobile        string `gorm:"column:refMobile" json:"refMobile"`
+	RefEmail         string `gorm:"column:refEmail" json:"refEmail"`
+	IsMainBranch     bool   `gorm:"column:isMainBranch" json:"isMainBranch"`
+	IsActive         bool   `gorm:"column:isActive" json:"isActive"`
+	RefBTId          int    `gorm:"column:refBTId" json:"refBTId"`
+	CreatedAt        string `gorm:"column:createdAt" json:"createdAt"`
+	CreatedBy        string `gorm:"column:createdBy" json:"createdBy"`
+	UpdatedAt        string `gorm:"column:updatedAt" json:"updatedAt"`
+	UpdatedBy        string `gorm:"column:updatedBy" json:"updatedBy"`
+	IsDelete         bool   `gorm:"column:isDelete" json:"isDelete"`
+	IsOnline         bool   `gorm:"column:isOnline" json:"isOnline"`
+	IsOffline        bool   `gorm:"column:isOffline" json:"isOffline"`
+	RefBranchDoorNo  string `gorm:"column:refBranchDoorNo" json:"refBranchDoorNo"`
+	RefBranchStreet  string `gorm:"column:refBranchStreet" json:"refBranchStreet"`
+	RefBranchCity    string `gorm:"column:refBranchCity" json:"refBranchCity"`
+	RefBranchState   string `gorm:"column:refBranchState" json:"refBranchState"`
+	RefBranchPincode string `gorm:"column:refBranchPincode" json:"refBranchPincode"`
 }
 
 type Floors struct {
@@ -124,17 +129,22 @@ type Sections struct {
 }
 
 type BranchResponse struct {
-	RefBranchId   int             `json:"refBranchId"`
-	RefBranchName string          `json:"refBranchName"`
-	RefBranchCode string          `json:"refBranchCode"`
-	RefLocation   string          `json:"refLocation"`
-	RefMobile     string          `json:"refMobile"`
-	RefEmail      string          `json:"refEmail"`
-	IsMainBranch  bool            `json:"isMainBranch"`
-	IsActive      bool            `json:"isActive"`
-	IsOnline      bool            `json:"isOnline"`
-	IsOffline     bool            `json:"isOffline"`
-	Floors        []FloorResponse `json:"floors"`
+	RefBranchId      int             `json:"refBranchId"`
+	RefBranchName    string          `json:"refBranchName"`
+	RefBranchCode    string          `json:"refBranchCode"`
+	RefLocation      string          `json:"refLocation"`
+	RefMobile        string          `json:"refMobile"`
+	RefEmail         string          `json:"refEmail"`
+	IsMainBranch     bool            `json:"isMainBranch"`
+	IsActive         bool            `json:"isActive"`
+	IsOnline         bool            `json:"isOnline"`
+	IsOffline        bool            `json:"isOffline"`
+	RefBranchDoorNo  string          `gorm:"column:refBranchDoorNo" json:"refBranchDoorNo"`
+	RefBranchStreet  string          `gorm:"column:refBranchStreet" json:"refBranchStreet"`
+	RefBranchCity    string          `gorm:"column:refBranchCity" json:"refBranchCity"`
+	RefBranchState   string          `gorm:"column:refBranchState" json:"refBranchState"`
+	RefBranchPincode string          `gorm:"column:refBranchPincode" json:"refBranchPincode"`
+	Floors           []FloorResponse `json:"floors"`
 }
 
 type FloorResponse struct {
