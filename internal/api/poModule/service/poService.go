@@ -507,15 +507,36 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 		UpdatedBy          string `gorm:"column:updatedBy"`
 		IsDelete           bool   `gorm:"column:isDelete"`
 		ProductName        string `gorm:"column:product_name"`
+		SKU                string `gorm:"column:SKU"`
 	}
 
 	currentTime := time.Now().Format("2006-01-02 15:04:05")
+	monthYear := time.Now().Format("0106") // e.g. 1025 for Oct 2025
+
+	// --- Determine latest SKU number ---
+	var lastSKU string
+	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts"`).
+		Select(`"SKU"`).
+		Order("product_instance_id DESC").
+		Limit(1).
+		Scan(&lastSKU).Error
+
+	var nextSKUCode int64 = 10001
+	if err == nil && lastSKU != "" {
+		parts := strings.Split(lastSKU, "-")
+		if len(parts) >= 3 {
+			if num, convErr := strconv.ParseInt(parts[2], 10, 64); convErr == nil {
+				nextSKUCode = num + 1
+			}
+		}
+	}
 
 	var records []PurchaseOrderAcceptedProduct
-
-	// --- Build bulk insert records ---
 	for _, product := range payload.Products {
 		for _, row := range product.DialogRows {
+			sku := fmt.Sprintf("SS-%s-%05d", monthYear, nextSKUCode)
+			nextSKUCode++ // increment for next product
+
 			record := PurchaseOrderAcceptedProduct{
 				PoProductId:        payload.PurchaseOrderId,
 				PurchaseOrderId:    payload.PurchaseOrderId,
@@ -536,7 +557,9 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 				UpdatedAt:          currentTime,
 				UpdatedBy:          "Admin",
 				IsDelete:           false,
+				SKU:                sku,
 			}
+
 			records = append(records, record)
 		}
 	}
@@ -551,9 +574,8 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 	}
 
 	// --- Generate Invoice Number ---
-	// Get the latest invoice number suffix from PurchaseOrders table
 	var lastInvoice string
-	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).
+	err = db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).
 		Select(`"invoiceFinalNumber"`).
 		Order("purchase_order_id DESC").
 		Limit(1).
@@ -563,7 +585,6 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 		return fmt.Errorf("failed to fetch last invoice: %v", err)
 	}
 
-	// Determine the next invoice number suffix
 	var nextNumber int64 = 10001
 	if lastInvoice != "" {
 		parts := strings.Split(lastInvoice, "-")
@@ -574,10 +595,8 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 		}
 	}
 
-	monthYear := time.Now().Format("0106") // e.g., 1025 for Oct 2025
 	invoiceNumber := fmt.Sprintf("PO-INV-%s-%05d", monthYear, nextNumber)
 
-	// --- Update PurchaseOrder table ---
 	updateData := map[string]interface{}{
 		`"invoiceStatus"`:      true,
 		`"invoiceFinalNumber"`: invoiceNumber,
