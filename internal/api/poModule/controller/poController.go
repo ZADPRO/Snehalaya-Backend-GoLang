@@ -185,3 +185,69 @@ func GetAllPurchaseOrdersListController() gin.HandlerFunc {
 		})
 	}
 }
+
+func UpdatePurchaseOrderProductsController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📝 UpdatePurchaseOrderProductsController invoked")
+
+		var payload []poService.UpdatePOProductRequest // ✅ use struct from service
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Errorf("❌ Invalid request body: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid request payload"})
+			return
+		}
+
+		if len(payload) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Empty payload"})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		err := poService.UpdatePurchaseOrderProductsService(dbConn, payload)
+		if err != nil {
+			log.Errorf("❌ Failed to update products: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Database update failed"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Purchase order products updated successfully",
+		})
+	}
+}
+
+func SavePurchaseOrderProductsController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("🧾 SavePurchaseOrderProductsController invoked")
+
+		var payload poService.SavePurchaseOrderProductsRequest
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Errorf("❌ Invalid request payload: %v", err)
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid request payload"})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		if err := poService.SavePurchaseOrderProductsService(dbConn, payload); err != nil {
+			log.Errorf("❌ Failed to save PO products: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Database save failed"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Purchase order products saved successfully",
+		})
+	}
+}
+
+
