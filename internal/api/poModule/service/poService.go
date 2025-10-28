@@ -299,42 +299,56 @@ func GetAllPurchaseOrdersListService(db *gorm.DB) ([]poModuleModel.PurchaseOrder
 		return nil, err
 	}
 
-	// Step 2: For each order, fetch products + category details
 	for i := range orders {
 		productQuery := `
-			SELECT 
-				pop.po_product_id,
-				pop.purchase_order_id,
-				pop.category_id,
-				pop.description,
-				pop.unit_price,
-				pop.discount,
-				pop.quantity,
-				pop.total,
-				pop."createdAt",
-				pop."createdBy",
-				pop."updatedAt",
-				pop."updatedBy",
-				ic."initialCategoryId" AS "categoryDetails.initialCategoryId",
-				ic."initialCategoryName" AS "categoryDetails.initialCategoryName",
-				ic."initialCategoryCode" AS "categoryDetails.initialCategoryCode",
-				ic."isDelete" AS "categoryDetails.isDelete",
-				ic."createdAt" AS "categoryDetails.createdAt",
-				ic."createdBy" AS "categoryDetails.createdBy",
-				ic."updatedAt" AS "categoryDetails.updatedAt",
-				ic."updatedBy" AS "categoryDetails.updatedBy"
-			FROM "purchaseOrderMgmt"."PurchaseOrderProducts" pop
-			LEFT JOIN public."InitialCategories" ic 
-				ON pop.category_id = ic."initialCategoryId"
-			WHERE pop.purchase_order_id = ?
-			ORDER BY pop.po_product_id ASC;
-		`
+		SELECT 
+			pop.po_product_id,
+			pop.purchase_order_id,
+			pop.category_id,
+			pop.description,
+			pop.unit_price,
+			pop.discount,
+			pop.quantity,
+			pop.total,
+			pop."createdAt",
+			pop."createdBy",
+			pop."updatedAt",
+			pop."updatedBy",
+			ic."initialCategoryId"   AS initial_category_id,
+			ic."initialCategoryName" AS initial_category_name,
+			ic."initialCategoryCode" AS initial_category_code,
+			ic."isDelete"            AS category_is_delete,
+			ic."createdAt"           AS category_created_at,
+			ic."createdBy"           AS category_created_by,
+			ic."updatedAt"           AS category_updated_at,
+			ic."updatedBy"           AS category_updated_by
+		FROM "purchaseOrderMgmt"."PurchaseOrderProducts" pop
+		LEFT JOIN public."InitialCategories" ic 
+			ON pop.category_id = ic."initialCategoryId"
+		WHERE pop.purchase_order_id = ?
+		ORDER BY pop.po_product_id ASC;
+	`
 
 		var products []poModuleModel.PurchaseOrderProductLatest
 		if err := db.Raw(productQuery, orders[i].PurchaseOrderId).Scan(&products).Error; err != nil {
 			log.Errorf("❌ Failed to fetch products for PO ID %d: %v", orders[i].PurchaseOrderId, err)
 			continue
 		}
+
+		// ✅ map flat fields into nested CategoryDetails
+		for j := range products {
+			products[j].CategoryDetails = poModuleModel.CategoryDetails{
+				InitialCategoryId:   products[j].InitialCategoryId,
+				InitialCategoryName: products[j].InitialCategoryName,
+				InitialCategoryCode: products[j].InitialCategoryCode,
+				IsDelete:            products[j].IsDelete,
+				CreatedAt:           products[j].CategoryCreatedAt,
+				CreatedBy:           products[j].CategoryCreatedBy,
+				UpdatedAt:           products[j].CategoryUpdatedAt,
+				UpdatedBy:           products[j].CategoryUpdatedBy,
+			}
+		}
+
 		orders[i].Products = products
 	}
 
