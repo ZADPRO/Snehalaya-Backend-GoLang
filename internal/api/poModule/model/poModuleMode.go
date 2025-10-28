@@ -121,3 +121,19 @@ type PurchaseOrderResponse struct {
 	CreatedAt           string `gorm:"column:createdAt"`
 	CreatedBy           string `gorm:"column:createdBy"`
 }
+
+type PurchaseOrderListResponse struct {
+	PurchaseOrderID       int64  `json:"purchase_order_id" gorm:"column:purchase_order_id"`
+	PurchaseOrderNumber   string `json:"purchase_order_number" gorm:"column:purchase_order_number"`
+	Status                string `json:"status" gorm:"column:status"`
+	TotalOrderedQuantity  int64  `json:"total_ordered_quantity" gorm:"column:total_ordered_quantity"`
+	TotalAcceptedQuantity int64  `json:"total_accepted_quantity" gorm:"column:total_accepted_quantity"`
+	TotalRejectedQuantity int64  `json:"total_rejected_quantity" gorm:"column:total_rejected_quantity"`
+	TotalAmount           string `json:"total_amount" gorm:"column:total_amount"`
+	CreatedAt             string `json:"created_at" gorm:"column:created_at"`
+	TaxableAmount         string `json:"taxable_amount" gorm:"column:taxable_amount"`
+	SupplierID            int64  `json:"supplier_id" gorm:"column:supplier_id"`
+	BranchID              int64  `json:"branch_id" gorm:"column:branch_id"`
+	SupplierName          string `json:"supplier_name" gorm:"column:supplier_name"`
+	BranchName            string `json:"branch_name" gorm:"column:branch_name"`
+}

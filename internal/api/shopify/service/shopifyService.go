@@ -7,6 +7,7 @@ import (
 
 	shopifyConfig "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/shopify"
 	goshopify "github.com/bold-commerce/go-shopify/v4"
+
 )
 
 func GetAllProducts() ([]goshopify.Product, error) {
@@ -43,11 +44,58 @@ func CreateProduct(product goshopify.Product) (*goshopify.Product, error) {
 		return nil, fmt.Errorf("shopify client not initialized")
 	}
 
+	// ✅ Step 1: Create the product
 	createdProduct, err := client.Product.Create(ctx, product)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create product: %v", err)
 	}
 
 	log.Printf("✅ Product created successfully! Id: %d, Title: %s\n", createdProduct.Id, createdProduct.Title)
+
+	// ✅ Step 2: Get your Shopify location ID
+	locations, err := client.Location.List(ctx, nil)
+	if err != nil {
+		return createdProduct, fmt.Errorf("failed to get locations: %v", err)
+	}
+	if len(locations) == 0 {
+		return createdProduct, fmt.Errorf("no Shopify locations found")
+	}
+	locationID := locations[0].Id // 🟢 use .Id instead of .ID
+	log.Printf("📍 Using location ID: %d\n", locationID)
+
+	for _, variant := range createdProduct.Variants {
+		if variant.InventoryItemId == 0 {
+			log.Printf("⚠️ Variant %d has no InventoryItemId, skipping...\n", variant.Id)
+			continue
+		}
+
+		tracked := true
+		invItem := goshopify.InventoryItem{
+			Id:      variant.InventoryItemId,
+			Tracked: &tracked,
+		}
+
+		_, err = client.InventoryItem.Update(ctx, invItem)
+		if err != nil {
+			log.Printf("⚠️ Failed to enable inventory tracking for variant %d: %v\n", variant.Id, err)
+			continue
+		}
+
+		invLevel := goshopify.InventoryLevel{
+			LocationId:      locationID,
+			InventoryItemId: variant.InventoryItemId,
+			Available:       variant.InventoryQuantity, // ✅ use value from request
+		}
+
+		_, err = client.InventoryLevel.Set(ctx, invLevel)
+		if err != nil {
+			log.Printf("⚠️ Failed to set inventory level for variant %d: %v\n", variant.Id, err)
+			continue
+		}
+
+		log.Printf("✅ Inventory tracking enabled and quantity (%d) set for variant %d\n", variant.InventoryQuantity, variant.Id)
+	}
+
+	log.Println("🎉 Product created with tracked inventory!")
 	return createdProduct, nil
 }

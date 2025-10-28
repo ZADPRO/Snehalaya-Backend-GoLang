@@ -136,3 +136,52 @@ func UpdatePurchaseOrderController() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Purchase Order updated", "token": token})
 	}
 }
+
+func GetAllPurchaseOrdersListController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📋 GetAllPurchaseOrdersController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context data")
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found"})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		// 🔍 Debug database connection info
+		log.Infof("🗄️ Connected to DB: %v", sqlDB.Stats())
+		log.Infof("👤 UserID: %v | RoleID: %v | BranchID: %v", idValue, roleIdValue, branchIdValue)
+
+		// Call service
+		poList, err := poService.GetAllPurchaseOrdersListService(dbConnt)
+		if err != nil {
+			log.Error("❌ Failed to fetch Purchase Orders: " + err.Error())
+
+			// 🔍 Return full DB error for debugging
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": err.Error(),
+				"hint":    "Check if schema 'purchaseOrderMgmt' and table 'PurchaseOrders' exist.",
+			})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Infof("✅ %d Purchase Orders fetched successfully", len(poList))
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   poList,
+			"token":  token,
+		})
+	}
+}

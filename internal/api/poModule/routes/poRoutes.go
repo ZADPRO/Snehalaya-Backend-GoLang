@@ -14,5 +14,8 @@ func PurchaseOrderRoutes(route *gin.Engine) {
 		po.GET("/purchaseOrder", accesstoken.JWTMiddleware(), poController.GetAllPurchaseOrdersController())
 		po.PUT("/purchaseOrder", accesstoken.JWTMiddleware(), poController.UpdatePurchaseOrderController())
 		// po.DELETE("/:id", accesstoken.JWTMiddleware(), poController.DeletePurchaseOrderController())
+
+		po.GET("/getAllPurchaseOrders", accesstoken.JWTMiddleware(), poController.GetAllPurchaseOrdersListController())
+
 	}
 }

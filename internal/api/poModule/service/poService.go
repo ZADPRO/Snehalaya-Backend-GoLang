@@ -10,6 +10,7 @@ import (
 	poModuleModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/poModule/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
+
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOrderPayload, roleName string) (string, error) {
@@ -144,7 +145,7 @@ func GetAllPurchaseOrdersService(db *gorm.DB) []poModuleModel.PurchaseOrderPaylo
     `).
 		Joins(`LEFT JOIN public."Supplier" s ON po.supplier_id = s."supplierId"`).
 		Joins(`LEFT JOIN public."Branches" b ON po.branch_id = b."refBranchId"`).
-		Where(`po."isDelete" = ? AND po."invoiceStatus" = ?`, false, false).
+		Where(`po."isDelete" = ?`, false).
 		Order("po.purchase_order_id DESC").
 		Scan(&purchaseOrders).Error
 
@@ -245,4 +246,75 @@ func UpdatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOr
 
 	log.Info("✅ PO updated successfully")
 	return nil
+}
+
+func GetAllPurchaseOrdersListService(db *gorm.DB) ([]poModuleModel.PurchaseOrderListResponse, error) {
+	log := logger.InitLogger()
+	log.Info("📦 GetAllPurchaseOrdersService invoked")
+
+	query := `
+SELECT 
+    po.purchase_order_id AS purchase_order_id,
+    po."purchaseOrderNumber" AS purchase_order_number,
+    CASE 
+        WHEN po."invoiceStatus" = true THEN 'Approved'
+        WHEN po."invoiceStatus" = false THEN 'Created'
+        ELSE 'Created'
+    END AS status,
+
+    -- 🧮 Quantities
+    COALESCE(SUM(CAST(pop.quantity AS BIGINT)), 0) AS total_ordered_quantity,
+    COALESCE(SUM(CAST(pop.accepted_quantity AS BIGINT)), 0) AS total_accepted_quantity,
+    COALESCE(SUM(CAST(pop.rejected_quantity AS BIGINT)), 0) AS total_rejected_quantity,
+
+    -- 💰 Totals
+    po.total_amount AS total_amount,
+    po."createdAt" AS created_at,
+    po.tax_amount AS taxable_amount,
+
+    -- 🏷️ IDs
+    po.supplier_id AS supplier_id,
+    po.branch_id AS branch_id,
+
+    -- 🔗 Joins
+    s."supplierName" AS supplier_name,
+    b."refBranchName" AS branch_name
+
+FROM "purchaseOrderMgmt"."PurchaseOrders" po
+LEFT JOIN "purchaseOrderMgmt"."PurchaseOrderProducts" pop 
+    ON po.purchase_order_id = pop.purchase_order_id
+LEFT JOIN public."Supplier" s 
+    ON po.supplier_id = s."supplierId"
+LEFT JOIN public."Branches" b 
+    ON po.branch_id = b."refBranchId"
+
+WHERE (po."isDelete" IS NULL OR po."isDelete" = false)
+
+GROUP BY 
+    po.purchase_order_id, 
+    po."purchaseOrderNumber", 
+    po."invoiceStatus", 
+    po.total_amount, 
+    po."createdAt", 
+    po.tax_amount, 
+    po.supplier_id,
+    po.branch_id,
+    s."supplierName", 
+    b."refBranchName"
+
+ORDER BY po.purchase_order_id DESC;
+
+`
+
+	log.Infof("🧾 Executing Query:\n%s", query)
+
+	var results []poModuleModel.PurchaseOrderListResponse
+	if err := db.Raw(query).Scan(&results).Error; err != nil {
+		log.Errorf("❌ Query execution failed: %v", err)
+		return nil, err
+	}
+
+	log.Infof("✅ %d Purchase Orders fetched successfully", len(results))
+	log.Infof("\n\nproducts", results)
+	return results, nil
 }
