@@ -11,6 +11,7 @@ import (
 	poModuleModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/poModule/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
+
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOrderPayload, roleName string) (string, error) {
@@ -251,7 +252,7 @@ func GetAllPurchaseOrdersListService(db *gorm.DB) ([]poModuleModel.PurchaseOrder
 	log := logger.InitLogger()
 	log.Info("📦 GetAllPurchaseOrdersService invoked")
 
-	// Step 1: Fetch all purchase orders (same as before)
+	// Step 1: Fetch all purchase orders (now includes invoice fields)
 	orderQuery := `
 	SELECT 
 		po.purchase_order_id,
@@ -261,14 +262,25 @@ func GetAllPurchaseOrdersListService(db *gorm.DB) ([]poModuleModel.PurchaseOrder
 			WHEN po."invoiceStatus" = false THEN 'Created'
 			ELSE 'Created'
 		END AS status,
-		COALESCE(SUM(CAST(pop.quantity AS BIGINT)), 0) AS total_ordered_quantity,
-		COALESCE(SUM(CAST(pop.accepted_quantity AS BIGINT)), 0) AS total_accepted_quantity,
-		COALESCE(SUM(CAST(pop.rejected_quantity AS BIGINT)), 0) AS total_rejected_quantity,
+
+		po."invoiceStatus" AS invoice_status,
+		po."invoiceFinalNumber" AS invoice_final_number,
+
+		COALESCE(SUM(
+			CAST(NULLIF(REGEXP_REPLACE(pop.quantity::text, '[^0-9.-]', '', 'g'), '') AS BIGINT)
+		), 0) AS total_ordered_quantity,
+		COALESCE(SUM(
+			CAST(NULLIF(REGEXP_REPLACE(pop.accepted_quantity::text, '[^0-9.-]', '', 'g'), '') AS BIGINT)
+		), 0) AS total_accepted_quantity,
+		COALESCE(SUM(
+			CAST(NULLIF(REGEXP_REPLACE(pop.rejected_quantity::text, '[^0-9.-]', '', 'g'), '') AS BIGINT)
+		), 0) AS total_rejected_quantity,
+
 		po.total_amount,
 		po."createdAt" AS created_at, 
 		po.tax_amount AS taxable_amount,
 		po.supplier_id,
-    	s."supplierName" AS supplier_name,                    -- ✅ snake_case alias
+    	s."supplierName" AS supplier_name,
 		po.branch_id,
 		b."refBranchName" AS branch_name
 	FROM "purchaseOrderMgmt"."PurchaseOrders" po
@@ -283,6 +295,7 @@ func GetAllPurchaseOrdersListService(db *gorm.DB) ([]poModuleModel.PurchaseOrder
 		po.purchase_order_id, 
 		po."purchaseOrderNumber", 
 		po."invoiceStatus", 
+		po."invoiceFinalNumber",
 		po.total_amount, 
 		po."createdAt", 
 		po.tax_amount, 
@@ -299,35 +312,56 @@ func GetAllPurchaseOrdersListService(db *gorm.DB) ([]poModuleModel.PurchaseOrder
 		return nil, err
 	}
 
+	// Step 2: For each order, fetch product details
 	for i := range orders {
 		productQuery := `
-		SELECT 
-			pop.po_product_id,
-			pop.purchase_order_id,
-			pop.category_id,
-			pop.description,
-			pop.unit_price,
-			pop.discount,
-			pop.quantity,
-			pop.total,
-			pop."createdAt",
-			pop."createdBy",
-			pop."updatedAt",
-			pop."updatedBy",
-			ic."initialCategoryId"   AS initial_category_id,
-			ic."initialCategoryName" AS initial_category_name,
-			ic."initialCategoryCode" AS initial_category_code,
-			ic."isDelete"            AS category_is_delete,
-			ic."createdAt"           AS category_created_at,
-			ic."createdBy"           AS category_created_by,
-			ic."updatedAt"           AS category_updated_at,
-			ic."updatedBy"           AS category_updated_by
-		FROM "purchaseOrderMgmt"."PurchaseOrderProducts" pop
-		LEFT JOIN public."InitialCategories" ic 
-			ON pop.category_id = ic."initialCategoryId"
-		WHERE pop.purchase_order_id = ?
-		ORDER BY pop.po_product_id ASC;
-	`
+SELECT 
+    pop.po_product_id,
+    pop.purchase_order_id,
+    pop.category_id,
+    pop.description,
+    pop.unit_price,
+    pop.discount,
+    pop.quantity,
+    pop.total,
+
+    -- ✅ Extract numeric value from malformed strings like "%!d(float64=12)"
+    COALESCE(
+        NULLIF(
+            REGEXP_REPLACE(pop.accepted_quantity::text, '.*float64=([0-9.-]+).*', '\1'),
+            ''
+        ),
+        '0'
+    ) AS accepted_quantity,
+
+    COALESCE(
+        NULLIF(
+            REGEXP_REPLACE(pop.rejected_quantity::text, '.*float64=([0-9.-]+).*', '\1'),
+            ''
+        ),
+        '0'
+    ) AS rejected_quantity,
+
+    pop."createdAt",
+    pop."createdBy",
+    pop."updatedAt",
+    pop."updatedBy",
+
+    ic."initialCategoryId"   AS initial_category_id,
+    ic."initialCategoryName" AS initial_category_name,
+    ic."initialCategoryCode" AS initial_category_code,
+    ic."isDelete"            AS category_is_delete,
+    ic."createdAt"           AS category_created_at,
+    ic."createdBy"           AS category_created_by,
+    ic."updatedAt"           AS category_updated_at,
+    ic."updatedBy"           AS category_updated_by
+
+FROM "purchaseOrderMgmt"."PurchaseOrderProducts" pop
+LEFT JOIN public."InitialCategories" ic 
+    ON pop.category_id = ic."initialCategoryId"
+WHERE pop.purchase_order_id = ?
+ORDER BY pop.po_product_id ASC;
+`
 
 		var products []poModuleModel.PurchaseOrderProductLatest
 		if err := db.Raw(productQuery, orders[i].PurchaseOrderId).Scan(&products).Error; err != nil {

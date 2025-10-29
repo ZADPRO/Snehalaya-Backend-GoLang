@@ -202,18 +202,20 @@ type CategoryDetails struct {
 }
 
 type PurchaseOrderProductLatest struct {
-	PoProductId     int    `json:"poProductId"`
-	PurchaseOrderId int    `json:"purchaseOrderId"`
-	CategoryId      int    `json:"categoryId"`
-	Description     string `json:"description"`
-	UnitPrice       string `json:"unitPrice"`
-	Discount        string `json:"discount"`
-	Quantity        string `json:"quantity"`
-	Total           string `json:"total"`
-	CreatedAt       string `json:"createdAt"`
-	CreatedBy       string `json:"createdBy"`
-	UpdatedAt       string `json:"updatedAt"`
-	UpdatedBy       string `json:"updatedBy"`
+	PoProductId      int    `json:"poProductId"`
+	PurchaseOrderId  int    `json:"purchaseOrderId"`
+	CategoryId       int    `json:"categoryId"`
+	Description      string `json:"description"`
+	UnitPrice        string `json:"unitPrice"`
+	Discount         string `json:"discount"`
+	Quantity         string `json:"quantity"`
+	Total            string `json:"total"`
+	CreatedAt        string `json:"createdAt"`
+	CreatedBy        string `json:"createdBy"`
+	UpdatedAt        string `json:"updatedAt"`
+	UpdatedBy        string `json:"updatedBy"`
+	AcceptedQuantity string `json:"accepted_quantity"`
+	RejectedQuantity string `json:"rejected_quantity"`
 
 	InitialCategoryId   int     `json:"-"` // hidden in JSON
 	InitialCategoryName string  `json:"-"`
