@@ -11,7 +11,6 @@ import (
 	poModuleModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/poModule/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
-
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOrderPayload, roleName string) (string, error) {
@@ -645,4 +644,195 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 	}
 
 	return nil
+}
+
+// --- Structs ---
+type DialogRow struct {
+	SNo                int     `json:"sNo"`
+	LineNumber         int     `json:"lineNumber"`
+	ReferenceNumber    string  `json:"referenceNumber"`
+	ProductDescription string  `json:"productDescription"`
+	Discount           float64 `json:"discount"`
+	Price              float64 `json:"price"`
+	DiscountPrice      float64 `json:"discountPrice"`
+	Margin             float64 `json:"margin"`
+	TotalAmount        string  `json:"totalAmount"`
+}
+
+type Product struct {
+	SNo             int         `json:"sNo"`
+	LineNumber      int         `json:"lineNumber"`
+	ProductName     string      `json:"productName"`
+	Brand           string      `json:"brand"`
+	CategoryId      int         `json:"categoryId"`
+	SubCategoryId   int         `json:"subCategoryId"`
+	TaxClass        string      `json:"taxClass"`
+	Quantity        int         `json:"quantity"`
+	Cost            float64     `json:"cost"`
+	ProfitMargin    float64     `json:"profitMargin"`
+	SellingPrice    float64     `json:"sellingPrice"`
+	Mrp             float64     `json:"mrp"`
+	DiscountPercent float64     `json:"discountPercent"`
+	DiscountPrice   float64     `json:"discountPrice"`
+	DialogRows      []DialogRow `json:"dialogRows"`
+}
+
+type PurchaseOrderDetailsResponse struct {
+	PurchaseOrderId    int       `json:"purchaseOrderId"`
+	InvoiceFinalNumber string    `json:"invoiceFinalNumber"`
+	Products           []Product `json:"products"`
+}
+
+func GetPurchaseOrderDetailsService(db *gorm.DB, purchaseOrderNumber string) (PurchaseOrderDetailsResponse, error) {
+	log := logger.InitLogger()
+	var response PurchaseOrderDetailsResponse
+
+	// Step 1: Get purchase order basic info (ID + invoice number)
+	var po struct {
+		PurchaseOrderId    int    `gorm:"column:purchase_order_id"`
+		InvoiceFinalNumber string `gorm:"column:invoiceFinalNumber"`
+	}
+	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).
+		Select(`"purchase_order_id", "invoiceFinalNumber"`).
+		Where(`"purchaseOrderNumber" = ?`, purchaseOrderNumber).
+		First(&po).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return response, fmt.Errorf("purchase order not found")
+	}
+	if err != nil {
+		return response, err
+	}
+
+	// Step 2: Fetch PO products (join with categories/subcategories)
+	type ProductRow struct {
+		PoProductId     int     `gorm:"column:po_product_id"`
+		LineNumber      int     `gorm:"column:line_number"`
+		Description     string  `gorm:"column:description"`
+		CategoryId      int     `gorm:"column:category_id"`
+		CategoryName    string  `gorm:"column:category_name"`
+		SubCategoryId   int     `gorm:"column:sub_category_id"`
+		SubCategoryName string  `gorm:"column:sub_category_name"`
+		Quantity        int     `gorm:"column:quantity"`
+		UnitPrice       float64 `gorm:"column:unit_price"`
+	}
+
+	var poProducts []ProductRow
+	err = db.Table(`"purchaseOrderMgmt"."PurchaseOrderProducts" AS pop`).
+		Select(`
+			pop."po_product_id",
+			pop."line_number",
+			pop."description",
+			pop."category_id",
+			c."categoryName" AS category_name,
+			pop."sub_category_id",
+			sc."subCategoryName" AS sub_category_name,
+			pop."quantity",
+			pop."unit_price"
+		`).
+		Joins(`LEFT JOIN public."Categories" c ON c."refCategoryid" = pop."category_id"`).
+		Joins(`LEFT JOIN public."SubCategories" sc ON sc."refSubCategoryId" = pop."sub_category_id"`).
+		Where(`pop."purchase_order_id" = ?`, po.PurchaseOrderId).
+		Scan(&poProducts).Error
+	if err != nil {
+		return response, err
+	}
+
+	// Step 3: Fetch accepted products (dialog rows + category/subcategory)
+	type AcceptedRow struct {
+		PoProductId        int     `gorm:"column:po_product_id"`
+		LineNumber         int     `gorm:"column:line_number"`
+		ReferenceNumber    string  `gorm:"column:reference_number"`
+		ProductDescription string  `gorm:"column:product_description"`
+		Discount           float64 `gorm:"column:discount"`
+		UnitPrice          float64 `gorm:"column:unit_price"`
+		DiscountPrice      float64 `gorm:"column:discount_price"`
+		Margin             float64 `gorm:"column:margin"`
+		TotalAmount        string  `gorm:"column:total_amount"`
+		CategoryId         int     `gorm:"column:category_id"`
+		CategoryName       string  `gorm:"column:category_name"`
+		SubCategoryId      int     `gorm:"column:sub_category_id"`
+		SubCategoryName    string  `gorm:"column:sub_category_name"`
+		ProductName        string  `gorm:"column:product_name"`
+		SKU                string  `gorm:"column:SKU"`
+	}
+
+	var acceptedProducts []AcceptedRow
+	err = db.Table(`"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" AS ap`).
+		Select(`
+			ap."po_product_id",
+			ap."line_number",
+			ap."reference_number",
+			ap."product_description",
+			ap."discount",
+			ap."unit_price",
+			ap."discount_price",
+			ap."margin",
+			ap."total_amount",
+			ap."category_id",
+			c."categoryName" AS category_name,
+			ap."sub_category_id",
+			sc."subCategoryName" AS sub_category_name,
+			ap."product_name",
+			ap."SKU"
+		`).
+		Joins(`LEFT JOIN public."Categories" c ON c."refCategoryid" = ap."category_id"`).
+		Joins(`LEFT JOIN public."SubCategories" sc ON sc."refSubCategoryId" = ap."sub_category_id"`).
+		Where(`ap."purchaseOrderId" = ?`, po.PurchaseOrderId).
+		Order(`ap."product_instance_id" ASC`).
+		Scan(&acceptedProducts).Error
+	if err != nil {
+		return response, err
+	}
+
+	// Step 4: Combine both into final response
+	var responseProducts []Product
+	sNo := 1
+	for _, p := range poProducts {
+		var rows []DialogRow
+		rowIndex := 1
+		for _, ap := range acceptedProducts {
+			if ap.PoProductId == p.PoProductId {
+				rows = append(rows, DialogRow{
+					SNo:                rowIndex,
+					LineNumber:         ap.LineNumber,
+					ReferenceNumber:    ap.ReferenceNumber,
+					ProductDescription: ap.ProductDescription,
+					Discount:           ap.Discount,
+					Price:              ap.UnitPrice,
+					DiscountPrice:      ap.DiscountPrice,
+					Margin:             ap.Margin,
+					TotalAmount:        ap.TotalAmount,
+				})
+				rowIndex++
+			}
+		}
+
+		responseProducts = append(responseProducts, Product{
+			SNo:             sNo,
+			LineNumber:      p.LineNumber,
+			ProductName:     p.Description,
+			Brand:           "Snehalayaa",
+			CategoryId:      p.CategoryId,
+			SubCategoryId:   p.SubCategoryId,
+			TaxClass:        "HSN Code",
+			Quantity:        p.Quantity,
+			Cost:            p.UnitPrice,
+			ProfitMargin:    80.5,
+			SellingPrice:    p.UnitPrice * 1.8,
+			Mrp:             p.UnitPrice * 1.8,
+			DiscountPercent: 0,
+			DiscountPrice:   0,
+			DialogRows:      rows,
+		})
+		sNo++
+	}
+
+	response = PurchaseOrderDetailsResponse{
+		PurchaseOrderId:    po.PurchaseOrderId,
+		InvoiceFinalNumber: po.InvoiceFinalNumber,
+		Products:           responseProducts,
+	}
+
+	log.Info(fmt.Sprintf("✅ Loaded PO #%s (%s) with %d products", purchaseOrderNumber, po.InvoiceFinalNumber, len(responseProducts)))
+	return response, nil
 }

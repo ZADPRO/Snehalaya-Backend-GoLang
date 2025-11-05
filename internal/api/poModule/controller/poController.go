@@ -10,7 +10,6 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
-
 )
 
 func CreatePurchaseOrderController() gin.HandlerFunc {
@@ -250,4 +249,47 @@ func SavePurchaseOrderProductsController() gin.HandlerFunc {
 	}
 }
 
+func GetPurchaseOrderDetailsController() gin.HandlerFunc {
+	log := logger.InitLogger()
 
+	return func(c *gin.Context) {
+		log.Info("📥 GetPurchaseOrderDetailsController invoked")
+
+		// Verify token claims
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found"})
+			return
+		}
+
+		purchaseOrderNumber := c.Param("purchaseOrderNumber")
+		if purchaseOrderNumber == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "purchaseOrderNumber is required"})
+			return
+		}
+
+		// DB connection
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		// Call service
+		data, err := poService.GetPurchaseOrderDetailsService(dbConn, purchaseOrderNumber)
+		if err != nil {
+			log.Error("❌ Failed to fetch PO details: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to fetch purchase order details"})
+			return
+		}
+
+		// Create new JWT token
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   data,
+			"token":  token,
+		})
+	}
+}

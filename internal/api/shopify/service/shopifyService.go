@@ -7,7 +7,6 @@ import (
 
 	shopifyConfig "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/shopify"
 	goshopify "github.com/bold-commerce/go-shopify/v4"
-
 )
 
 func GetAllProducts() ([]goshopify.Product, error) {
@@ -69,31 +68,42 @@ func CreateProduct(product goshopify.Product) (*goshopify.Product, error) {
 			continue
 		}
 
+		// Enable tracking
 		tracked := true
 		invItem := goshopify.InventoryItem{
 			Id:      variant.InventoryItemId,
 			Tracked: &tracked,
 		}
-
 		_, err = client.InventoryItem.Update(ctx, invItem)
 		if err != nil {
 			log.Printf("⚠️ Failed to enable inventory tracking for variant %d: %v\n", variant.Id, err)
 			continue
 		}
 
-		invLevel := goshopify.InventoryLevel{
-			LocationId:      locationID,
+		// Connect inventory to location
+		connectReq := goshopify.InventoryLevel{
 			InventoryItemId: variant.InventoryItemId,
-			Available:       variant.InventoryQuantity, // ✅ use value from request
+			LocationId:      locationID,
 		}
-
-		_, err = client.InventoryLevel.Set(ctx, invLevel)
+		_, err = client.InventoryLevel.Connect(ctx, connectReq)
 		if err != nil {
-			log.Printf("⚠️ Failed to set inventory level for variant %d: %v\n", variant.Id, err)
+			log.Printf("⚠️ Failed to connect inventory for variant %d: %v\n", variant.Id, err)
 			continue
 		}
 
-		log.Printf("✅ Inventory tracking enabled and quantity (%d) set for variant %d\n", variant.InventoryQuantity, variant.Id)
+		// Adjust quantity
+		adjustReq := goshopify.InventoryLevelAdjustOptions{
+			InventoryItemId: variant.InventoryItemId,
+			LocationId:      locationID,
+			Adjust:          variant.InventoryQuantity,
+		}
+		_, err = client.InventoryLevel.Adjust(ctx, adjustReq)
+		if err != nil {
+			log.Printf("⚠️ Failed to adjust inventory for variant %d: %v\n", variant.Id, err)
+			continue
+		}
+
+		log.Printf("✅ Inventory set to %d for variant %d\n", variant.InventoryQuantity, variant.Id)
 	}
 
 	log.Println("🎉 Product created with tracked inventory!")

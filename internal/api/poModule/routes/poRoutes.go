@@ -21,5 +21,7 @@ func PurchaseOrderRoutes(route *gin.Engine) {
 
 		po.POST("/savePurchaseOrderProducts", accesstoken.JWTMiddleware(), poController.SavePurchaseOrderProductsController())
 
+		po.GET("/details/:purchaseOrderNumber", accesstoken.JWTMiddleware(), poController.GetPurchaseOrderDetailsController())
+
 	}
 }
