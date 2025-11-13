@@ -293,3 +293,38 @@ func GetPurchaseOrderDetailsController() gin.HandlerFunc {
 		})
 	}
 }
+
+func GetAcceptedProductsController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📦 GetAcceptedProductsController invoked")
+
+		purchaseOrderId := c.Param("purchaseOrderId")
+		if purchaseOrderId == "" {
+			log.Error("❌ Missing purchaseOrderId in request")
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "purchaseOrderId is required"})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		results, err := poService.GetAcceptedProductsService(dbConn, purchaseOrderId)
+		if err != nil {
+			log.Errorf("❌ Failed to fetch accepted products: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to fetch accepted products",
+			})
+			return
+		}
+
+		log.Infof("✅ Retrieved %d accepted products for PurchaseOrderId: %s", len(results), purchaseOrderId)
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Accepted products retrieved successfully",
+			"data":    results,
+		})
+	}
+}

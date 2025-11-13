@@ -841,3 +841,80 @@ func GetPurchaseOrderDetailsService(db *gorm.DB, purchaseOrderNumber string) (Pu
 	log.Info(fmt.Sprintf("✅ Loaded PO #%s (%s) with %d products", purchaseOrderNumber, po.InvoiceFinalNumber, len(responseProducts)))
 	return response, nil
 }
+
+func GetAcceptedProductsService(db *gorm.DB, purchaseOrderId string) ([]map[string]interface{}, error) {
+	log := logger.InitLogger()
+	log.Infof("🔍 Fetching accepted products for PurchaseOrderId: %s", purchaseOrderId)
+
+	type PurchaseOrderAcceptedProduct struct {
+		ProductInstanceId  int    `json:"product_instance_id"`
+		PoProductId        int    `json:"po_product_id"`
+		PurchaseOrderId    int    `json:"purchaseOrderId"`
+		LineNumber         string `json:"line_number"`
+		ReferenceNumber    string `json:"reference_number"`
+		ProductDescription string `json:"product_description"`
+		Discount           string `json:"discount"`
+		UnitPrice          string `json:"unit_price"`
+		DiscountPrice      string `json:"discount_price"`
+		Margin             string `json:"margin"`
+		TotalAmount        string `json:"total_amount"`
+		CategoryId         int    `json:"category_id"`
+		SubCategoryId      int    `json:"sub_category_id"`
+		ProductName        string `json:"product_name"`
+		SKU                string `json:"SKU"`
+		Status             string `json:"status"`
+		CreatedAt          string `json:"createdAt"`
+		CreatedBy          string `json:"createdBy"`
+		UpdatedAt          string `json:"updatedAt"`
+		UpdatedBy          string `json:"updatedBy"`
+		IsDelete           bool   `json:"isDelete"`
+	}
+
+	var records []PurchaseOrderAcceptedProduct
+
+	// --- Fetch data ---
+	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts"`).
+		Where(`"purchaseOrderId" = ? AND "isDelete" = false`, purchaseOrderId).
+		Order(`"product_instance_id" ASC`).
+		Find(&records).Error
+
+	if err != nil {
+		log.Errorf("❌ Database query failed for PurchaseOrderId %s: %v", purchaseOrderId, err)
+		return nil, fmt.Errorf("database query failed: %v", err)
+	}
+
+	if len(records) == 0 {
+		log.Warnf("⚠️ No accepted products found for PurchaseOrderId: %s", purchaseOrderId)
+		return []map[string]interface{}{}, nil
+	}
+
+	// --- Transform data for clean JSON output ---
+	var result []map[string]interface{}
+	for _, rec := range records {
+		result = append(result, map[string]interface{}{
+			"productInstanceId":  rec.ProductInstanceId,
+			"poProductId":        rec.PoProductId,
+			"purchaseOrderId":    rec.PurchaseOrderId,
+			"lineNumber":         rec.LineNumber,
+			"referenceNumber":    rec.ReferenceNumber,
+			"productDescription": rec.ProductDescription,
+			"discount":           rec.Discount,
+			"unitPrice":          rec.UnitPrice,
+			"discountPrice":      rec.DiscountPrice,
+			"margin":             rec.Margin,
+			"totalAmount":        rec.TotalAmount,
+			"categoryId":         rec.CategoryId,
+			"subCategoryId":      rec.SubCategoryId,
+			"productName":        rec.ProductName,
+			"SKU":                rec.SKU,
+			"status":             rec.Status,
+			"createdAt":          rec.CreatedAt,
+			"createdBy":          rec.CreatedBy,
+			"updatedAt":          rec.UpdatedAt,
+			"updatedBy":          rec.UpdatedBy,
+		})
+	}
+
+	log.Infof("📦 Successfully fetched %d accepted products for PurchaseOrderId: %s", len(result), purchaseOrderId)
+	return result, nil
+}
