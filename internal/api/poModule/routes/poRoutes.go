@@ -15,14 +15,12 @@ func PurchaseOrderRoutes(route *gin.Engine) {
 		// po.DELETE("/:id", accesstoken.JWTMiddleware(), poController.DeletePurchaseOrderController())
 
 		po.GET("/getAllPurchaseOrders", accesstoken.JWTMiddleware(), poController.GetAllPurchaseOrdersListController())
-
 		po.POST("/updatePurchaseOrderProducts", accesstoken.JWTMiddleware(), poController.UpdatePurchaseOrderProductsController())
-
 		po.POST("/savePurchaseOrderProducts", accesstoken.JWTMiddleware(), poController.SavePurchaseOrderProductsController())
-
 		po.GET("/getAcceptedProducts/:purchaseOrderId", accesstoken.JWTMiddleware(), poController.GetAcceptedProductsController())
-
 		po.GET("/details/:purchaseOrderNumber", accesstoken.JWTMiddleware(), poController.GetPurchaseOrderDetailsController())
+
+		po.GET("/purchaseOrderAcceptedProducts", accesstoken.JWTMiddleware(), poController.GetAllPurchaseOrderAcceptedProductsController())
 
 	}
 }

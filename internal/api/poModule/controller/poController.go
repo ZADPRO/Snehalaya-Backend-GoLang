@@ -10,6 +10,7 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
+
 )
 
 func CreatePurchaseOrderController() gin.HandlerFunc {
@@ -326,5 +327,30 @@ func GetAcceptedProductsController() gin.HandlerFunc {
 			"message": "Accepted products retrieved successfully",
 			"data":    results,
 		})
+	}
+}
+
+func GetAllPurchaseOrderAcceptedProductsController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📥 GetAllPurchaseOrderAcceptedProductsController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found"})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		data := poService.GetAllPurchaseOrderAcceptedProductsService(dbConn)
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": data, "token": token})
 	}
 }

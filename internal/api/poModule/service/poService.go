@@ -467,6 +467,7 @@ type SavePurchaseOrderProductsRequest struct {
 }
 
 type SavePOProductRequest struct {
+	BranchId      int                      `json:"productBranchId"`
 	SNo           int                      `json:"sNo"`
 	LineNumber    int                      `json:"lineNumber"`
 	ProductName   string                   `json:"productName"`
@@ -483,6 +484,7 @@ type SavePOProductRequest struct {
 }
 
 type SavePODialogRowRequest struct {
+	BranchId           int     `json:"productBranchId"`
 	SNo                int     `json:"sNo"`
 	POProductID        int     `json:"poProductId"`
 	LineNumber         int     `json:"lineNumber"`
@@ -497,6 +499,7 @@ type SavePODialogRowRequest struct {
 
 func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProductsRequest) error {
 	type DialogRow struct {
+		BranchId           int     `json:"productBranchId"`
 		SNo                int     `json:"sNo"`
 		LineNumber         int     `json:"lineNumber"`
 		ReferenceNumber    string  `json:"referenceNumber"`
@@ -509,6 +512,7 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 	}
 
 	type Product struct {
+		BranchId      int         `json:"productBranchId"`
 		SNo           int         `json:"sNo"`
 		LineNumber    int         `json:"lineNumber"`
 		ProductName   string      `json:"productName"`
@@ -525,6 +529,7 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 	}
 
 	type PurchaseOrderAcceptedProduct struct {
+		ProductBranchId    int    `gorm:"column:productBranchId"`
 		ProductInstanceId  int    `gorm:"primaryKey;autoIncrement;column:product_instance_id"`
 		PoProductId        int    `gorm:"column:po_product_id"`
 		PurchaseOrderId    int    `gorm:"column:purchaseOrderId"`
@@ -576,6 +581,7 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 			nextSKUCode++ // increment for next product
 
 			record := PurchaseOrderAcceptedProduct{
+				ProductBranchId:    product.BranchId,
 				PoProductId:        payload.PurchaseOrderId,
 				PurchaseOrderId:    payload.PurchaseOrderId,
 				LineNumber:         fmt.Sprintf("%d", row.LineNumber),
@@ -846,33 +852,35 @@ func GetAcceptedProductsService(db *gorm.DB, purchaseOrderId string) ([]map[stri
 	log := logger.InitLogger()
 	log.Infof("🔍 Fetching accepted products for PurchaseOrderId: %s", purchaseOrderId)
 
+	// --- Define model mapping DB columns ---
 	type PurchaseOrderAcceptedProduct struct {
-		ProductInstanceId  int    `json:"product_instance_id"`
-		PoProductId        int    `json:"po_product_id"`
-		PurchaseOrderId    int    `json:"purchaseOrderId"`
-		LineNumber         string `json:"line_number"`
-		ReferenceNumber    string `json:"reference_number"`
-		ProductDescription string `json:"product_description"`
-		Discount           string `json:"discount"`
-		UnitPrice          string `json:"unit_price"`
-		DiscountPrice      string `json:"discount_price"`
-		Margin             string `json:"margin"`
-		TotalAmount        string `json:"total_amount"`
-		CategoryId         int    `json:"category_id"`
-		SubCategoryId      int    `json:"sub_category_id"`
-		ProductName        string `json:"product_name"`
-		SKU                string `json:"SKU"`
-		Status             string `json:"status"`
-		CreatedAt          string `json:"createdAt"`
-		CreatedBy          string `json:"createdBy"`
-		UpdatedAt          string `json:"updatedAt"`
-		UpdatedBy          string `json:"updatedBy"`
-		IsDelete           bool   `json:"isDelete"`
+		ProductInstanceId  int    `json:"product_instance_id" gorm:"column:product_instance_id"`
+		PoProductId        int    `json:"po_product_id" gorm:"column:po_product_id"`
+		PurchaseOrderId    int    `json:"purchaseOrderId" gorm:"column:purchaseOrderId"`
+		LineNumber         string `json:"line_number" gorm:"column:line_number"`
+		ReferenceNumber    string `json:"reference_number" gorm:"column:reference_number"`
+		ProductDescription string `json:"product_description" gorm:"column:product_description"`
+		Discount           string `json:"discount" gorm:"column:discount"`
+		UnitPrice          string `json:"unit_price" gorm:"column:unit_price"`
+		DiscountPrice      string `json:"discount_price" gorm:"column:discount_price"`
+		Margin             string `json:"margin" gorm:"column:margin"`
+		TotalAmount        string `json:"total_amount" gorm:"column:total_amount"`
+		CategoryId         int    `json:"category_id" gorm:"column:category_id"`
+		SubCategoryId      int    `json:"sub_category_id" gorm:"column:sub_category_id"`
+		ProductName        string `json:"product_name" gorm:"column:product_name"`
+		SKU                string `json:"SKU" gorm:"column:SKU"`
+		Status             string `json:"status" gorm:"column:status"`
+		CreatedAt          string `json:"createdAt" gorm:"column:createdAt"`
+		CreatedBy          string `json:"createdBy" gorm:"column:createdBy"`
+		UpdatedAt          string `json:"updatedAt" gorm:"column:updatedAt"`
+		UpdatedBy          string `json:"updatedBy" gorm:"column:updatedBy"`
+		IsDelete           bool   `json:"isDelete" gorm:"column:isDelete"`
+		ProductBranchId    *int   `json:"productBranchId" gorm:"column:productBranchId"`
 	}
 
 	var records []PurchaseOrderAcceptedProduct
 
-	// --- Fetch data ---
+	// --- Fetch only active (non-deleted) records ---
 	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts"`).
 		Where(`"purchaseOrderId" = ? AND "isDelete" = false`, purchaseOrderId).
 		Order(`"product_instance_id" ASC`).
@@ -888,33 +896,114 @@ func GetAcceptedProductsService(db *gorm.DB, purchaseOrderId string) ([]map[stri
 		return []map[string]interface{}{}, nil
 	}
 
-	// --- Transform data for clean JSON output ---
+	// --- Prepare final JSON-friendly result ---
 	var result []map[string]interface{}
 	for _, rec := range records {
-		result = append(result, map[string]interface{}{
-			"productInstanceId":  rec.ProductInstanceId,
-			"poProductId":        rec.PoProductId,
-			"purchaseOrderId":    rec.PurchaseOrderId,
-			"lineNumber":         rec.LineNumber,
-			"referenceNumber":    rec.ReferenceNumber,
-			"productDescription": rec.ProductDescription,
-			"discount":           rec.Discount,
-			"unitPrice":          rec.UnitPrice,
-			"discountPrice":      rec.DiscountPrice,
-			"margin":             rec.Margin,
-			"totalAmount":        rec.TotalAmount,
-			"categoryId":         rec.CategoryId,
-			"subCategoryId":      rec.SubCategoryId,
-			"productName":        rec.ProductName,
-			"SKU":                rec.SKU,
-			"status":             rec.Status,
-			"createdAt":          rec.CreatedAt,
-			"createdBy":          rec.CreatedBy,
-			"updatedAt":          rec.UpdatedAt,
-			"updatedBy":          rec.UpdatedBy,
-		})
+		// Only include non-deleted records (extra safeguard)
+		if !rec.IsDelete {
+			result = append(result, map[string]interface{}{
+				"productInstanceId":  rec.ProductInstanceId,
+				"poProductId":        rec.PoProductId,
+				"purchaseOrderId":    rec.PurchaseOrderId,
+				"lineNumber":         rec.LineNumber,
+				"referenceNumber":    rec.ReferenceNumber,
+				"productDescription": rec.ProductDescription,
+				"discount":           rec.Discount,
+				"unitPrice":          rec.UnitPrice,
+				"discountPrice":      rec.DiscountPrice,
+				"margin":             rec.Margin,
+				"totalAmount":        rec.TotalAmount,
+				"categoryId":         rec.CategoryId,
+				"subCategoryId":      rec.SubCategoryId,
+				"productName":        rec.ProductName,
+				"SKU":                rec.SKU,
+				"status":             rec.Status,
+				"createdAt":          rec.CreatedAt,
+				"createdBy":          rec.CreatedBy,
+				"updatedAt":          rec.UpdatedAt,
+				"updatedBy":          rec.UpdatedBy,
+				"productBranchId":    rec.ProductBranchId,
+			})
+		}
 	}
 
 	log.Infof("📦 Successfully fetched %d accepted products for PurchaseOrderId: %s", len(result), purchaseOrderId)
 	return result, nil
+}
+
+type PurchaseOrderAcceptedProductResponse struct {
+	ProductInstanceID  int    `json:"productInstanceId" gorm:"column:product_instance_id"`
+	PoProductID        int    `json:"poProductId" gorm:"column:po_product_id"`
+	LineNumber         string `json:"lineNumber" gorm:"column:line_number"`
+	ReferenceNumber    string `json:"referenceNumber" gorm:"column:reference_number"`
+	ProductDescription string `json:"productDescription" gorm:"column:product_description"`
+	Discount           string `json:"discount" gorm:"column:discount"`
+	UnitPrice          string `json:"unitPrice" gorm:"column:unit_price"`
+	DiscountPrice      string `json:"discountPrice" gorm:"column:discount_price"`
+	Margin             string `json:"margin" gorm:"column:margin"`
+	TotalAmount        string `json:"totalAmount" gorm:"column:total_amount"`
+	CategoryID         int    `json:"categoryId" gorm:"column:category_id"`
+	SubCategoryID      int    `json:"subCategoryId" gorm:"column:sub_category_id"`
+	Status             string `json:"status" gorm:"column:status"`
+	CreatedAt          string `json:"createdAt" gorm:"column:created_at"`
+	CreatedBy          string `json:"createdBy" gorm:"column:created_by"`
+	UpdatedAt          string `json:"updatedAt" gorm:"column:updated_at"`
+	UpdatedBy          string `json:"updatedBy" gorm:"column:updated_by"`
+	IsDelete           bool   `json:"isDelete" gorm:"column:is_delete"`
+	ProductName        string `json:"productName" gorm:"column:product_name"`
+	PurchaseOrderId    int    `json:"purchaseOrderId" gorm:"column:purchase_order_id"`
+	SKU                string `json:"sku" gorm:"column:sku"`
+	ProductBranchId    int    `json:"productBranchId" gorm:"column:product_branch_id"`
+	Quantity           string `json:"quantity" gorm:"column:quantity"`
+	InvoiceFinalNumber string `json:"invoiceFinalNumber" gorm:"column:invoice_final_number"`
+}
+
+func GetAllPurchaseOrderAcceptedProductsService(db *gorm.DB) []PurchaseOrderAcceptedProductResponse {
+	log := logger.InitLogger()
+	log.Info("💾 GetAllPurchaseOrderAcceptedProductsService invoked")
+
+	var results []PurchaseOrderAcceptedProductResponse
+
+	rawQuery := `
+		SELECT 
+			ap.product_instance_id      AS product_instance_id,
+			ap.po_product_id            AS po_product_id,
+			ap.line_number              AS line_number,
+			ap.reference_number         AS reference_number,
+			ap.product_description      AS product_description,
+			ap.discount                 AS discount,
+			ap.unit_price               AS unit_price,
+			ap.discount_price           AS discount_price,
+			ap.margin                   AS margin,
+			ap.total_amount             AS total_amount,
+			ap.category_id              AS category_id,
+			ap.sub_category_id          AS sub_category_id,
+			ap.status                   AS status,
+			ap."createdAt"              AS created_at,
+			ap."createdBy"              AS created_by,
+			ap."updatedAt"              AS updated_at,
+			ap."updatedBy"              AS updated_by,
+			ap."isDelete"               AS is_delete,
+			ap.product_name             AS product_name,
+			ap."purchaseOrderId"        AS purchase_order_id,
+			ap."SKU"                    AS sku,
+			ap."productBranchId"        AS product_branch_id,
+			ap.quantity                 AS quantity,
+			po."invoiceFinalNumber"     AS invoice_final_number
+		FROM "purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" AS ap
+		LEFT JOIN "purchaseOrderMgmt"."PurchaseOrders" po 
+			ON ap."purchaseOrderId" = po.purchase_order_id
+		WHERE ap."isDelete" = false
+		ORDER BY ap.product_instance_id DESC;
+	`
+
+	err := db.Raw(rawQuery).Scan(&results).Error
+	fmt.Print("\n\n\n\nresults", results)
+	if err != nil {
+		log.Errorf("❌ Failed to fetch accepted products: %v", err)
+		return nil
+	}
+
+	log.Infof("✅ Retrieved %d accepted products", len(results))
+	return results
 }
