@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/adminLogin/routes"
+	bulkImageUploadRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/bulkImageHandling/routes"
 	configMinio "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/helper/config"
 	oldProductRoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/oldProductMigration/routes"
 	PORoutes "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/poModule/routes"
@@ -69,6 +70,7 @@ func main() {
 	shopfiyRoutes.RegisterShopifyRoutes(r)
 	PORoutes.PurchaseOrderRoutes(r)
 	PORoutes.PurchaseOrderProductRoutes(r)
+	bulkImageUploadRoutes.BulkImageUploadRoutes(r)
 	// PING PONG API CALL FOR TESTING
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{

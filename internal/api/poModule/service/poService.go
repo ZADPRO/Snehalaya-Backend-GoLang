@@ -855,28 +855,29 @@ func GetAcceptedProductsService(db *gorm.DB, purchaseOrderId string) ([]map[stri
 
 	// --- Define model mapping DB columns ---
 	type PurchaseOrderAcceptedProduct struct {
-		ProductInstanceId  int    `json:"product_instance_id" gorm:"column:product_instance_id"`
-		PoProductId        int    `json:"po_product_id" gorm:"column:po_product_id"`
-		PurchaseOrderId    int    `json:"purchaseOrderId" gorm:"column:purchaseOrderId"`
-		LineNumber         string `json:"line_number" gorm:"column:line_number"`
-		ReferenceNumber    string `json:"reference_number" gorm:"column:reference_number"`
-		ProductDescription string `json:"product_description" gorm:"column:product_description"`
-		Discount           string `json:"discount" gorm:"column:discount"`
-		UnitPrice          string `json:"unit_price" gorm:"column:unit_price"`
-		DiscountPrice      string `json:"discount_price" gorm:"column:discount_price"`
-		Margin             string `json:"margin" gorm:"column:margin"`
-		TotalAmount        string `json:"total_amount" gorm:"column:total_amount"`
-		CategoryId         int    `json:"category_id" gorm:"column:category_id"`
-		SubCategoryId      int    `json:"sub_category_id" gorm:"column:sub_category_id"`
-		ProductName        string `json:"product_name" gorm:"column:product_name"`
-		SKU                string `json:"SKU" gorm:"column:SKU"`
-		Status             string `json:"status" gorm:"column:status"`
-		CreatedAt          string `json:"createdAt" gorm:"column:createdAt"`
-		CreatedBy          string `json:"createdBy" gorm:"column:createdBy"`
-		UpdatedAt          string `json:"updatedAt" gorm:"column:updatedAt"`
-		UpdatedBy          string `json:"updatedBy" gorm:"column:updatedBy"`
-		IsDelete           bool   `json:"isDelete" gorm:"column:isDelete"`
-		ProductBranchId    *int   `json:"productBranchId" gorm:"column:productBranchId"`
+		ProductInstanceId  int     `json:"product_instance_id" gorm:"column:product_instance_id"`
+		PoProductId        int     `json:"po_product_id" gorm:"column:po_product_id"`
+		PurchaseOrderId    int     `json:"purchaseOrderId" gorm:"column:purchaseOrderId"`
+		LineNumber         string  `json:"line_number" gorm:"column:line_number"`
+		ReferenceNumber    string  `json:"reference_number" gorm:"column:reference_number"`
+		ProductDescription string  `json:"product_description" gorm:"column:product_description"`
+		Discount           string  `json:"discount" gorm:"column:discount"`
+		UnitPrice          string  `json:"unit_price" gorm:"column:unit_price"`
+		DiscountPrice      string  `json:"discount_price" gorm:"column:discount_price"`
+		Margin             string  `json:"margin" gorm:"column:margin"`
+		TotalAmount        string  `json:"total_amount" gorm:"column:total_amount"`
+		CategoryId         int     `json:"category_id" gorm:"column:category_id"`
+		SubCategoryId      int     `json:"sub_category_id" gorm:"column:sub_category_id"`
+		ProductName        string  `json:"product_name" gorm:"column:product_name"`
+		SKU                string  `json:"SKU" gorm:"column:SKU"`
+		Status             string  `json:"status" gorm:"column:status"`
+		CreatedAt          string  `json:"createdAt" gorm:"column:createdAt"`
+		CreatedBy          string  `json:"createdBy" gorm:"column:createdBy"`
+		UpdatedAt          string  `json:"updatedAt" gorm:"column:updatedAt"`
+		UpdatedBy          string  `json:"updatedBy" gorm:"column:updatedBy"`
+		IsDelete           bool    `json:"isDelete" gorm:"column:isDelete"`
+		ProductBranchId    *int    `json:"productBranchId" gorm:"column:productBranchId"`
+		Quantity           *string `json:"quantity" gorm:"column:quantity"`
 	}
 
 	var records []PurchaseOrderAcceptedProduct
@@ -924,6 +925,7 @@ func GetAcceptedProductsService(db *gorm.DB, purchaseOrderId string) ([]map[stri
 				"updatedAt":          rec.UpdatedAt,
 				"updatedBy":          rec.UpdatedBy,
 				"productBranchId":    rec.ProductBranchId,
+				"quantity":           rec.Quantity,
 			})
 		}
 	}
