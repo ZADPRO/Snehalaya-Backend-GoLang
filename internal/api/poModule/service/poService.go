@@ -390,13 +390,13 @@ ORDER BY pop.po_product_id ASC;
 }
 
 type UpdatePOProductRequest struct {
-	PurchaseOrderID     int     `json:"purchase_order_id"`
-	PurchaseOrderNumber string  `json:"purchase_order_number"`
-	CategoryID          int     `json:"category_id"`
-	POProductID         int     `json:"po_product_id"`
-	AcceptedQuantity    float64 `json:"accepted_quantity"`
-	RejectedQuantity    float64 `json:"rejected_quantity"`
-	Status              string  `json:"status"`
+	PurchaseOrderID     int    `json:"purchase_order_id"`
+	PurchaseOrderNumber string `json:"purchase_order_number"`
+	CategoryID          int    `json:"category_id"`
+	POProductID         int    `json:"po_product_id"`
+	AcceptedQuantity    string `json:"accepted_quantity"`
+	RejectedQuantity    string `json:"rejected_quantity"`
+	Status              string `json:"status"`
 }
 
 func UpdatePurchaseOrderProductsService(db *gorm.DB, payload []UpdatePOProductRequest) error {
@@ -416,8 +416,13 @@ func UpdatePurchaseOrderProductsService(db *gorm.DB, payload []UpdatePOProductRe
 			WHERE po_product_id = ?;
 		`
 
-		if err := tx.Exec(updateQuery, fmt.Sprintf("%d", item.AcceptedQuantity),
-			fmt.Sprintf("%d", item.RejectedQuantity), item.Status, item.POProductID).Error; err != nil {
+		// ⬇️ Removed fmt.Sprintf conversions here
+		if err := tx.Exec(updateQuery,
+			item.AcceptedQuantity,
+			item.RejectedQuantity,
+			item.Status,
+			item.POProductID,
+		).Error; err != nil {
 			tx.Rollback()
 			log.Errorf("❌ Failed to update product ID %d: %v", item.POProductID, err)
 			return err
