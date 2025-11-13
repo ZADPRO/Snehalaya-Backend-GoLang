@@ -11,6 +11,7 @@ import (
 	poModuleModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/poModule/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
+
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOrderPayload, roleName string) (string, error) {
@@ -956,6 +957,9 @@ type PurchaseOrderAcceptedProductResponse struct {
 	ProductBranchId    int    `json:"productBranchId" gorm:"column:product_branch_id"`
 	Quantity           string `json:"quantity" gorm:"column:quantity"`
 	InvoiceFinalNumber string `json:"invoiceFinalNumber" gorm:"column:invoice_final_number"`
+	CategoryName       string `json:"categoryName" gorm:"column:category_name"`
+	SubCategoryName    string `json:"subCategoryName" gorm:"column:sub_category_name"`
+	BranchName         string `json:"branchName" gorm:"column:branch_name"`
 }
 
 func GetAllPurchaseOrderAcceptedProductsService(db *gorm.DB) []PurchaseOrderAcceptedProductResponse {
@@ -965,36 +969,44 @@ func GetAllPurchaseOrderAcceptedProductsService(db *gorm.DB) []PurchaseOrderAcce
 	var results []PurchaseOrderAcceptedProductResponse
 
 	rawQuery := `
-		SELECT 
-			ap.product_instance_id      AS product_instance_id,
-			ap.po_product_id            AS po_product_id,
-			ap.line_number              AS line_number,
-			ap.reference_number         AS reference_number,
-			ap.product_description      AS product_description,
-			ap.discount                 AS discount,
-			ap.unit_price               AS unit_price,
-			ap.discount_price           AS discount_price,
-			ap.margin                   AS margin,
-			ap.total_amount             AS total_amount,
-			ap.category_id              AS category_id,
-			ap.sub_category_id          AS sub_category_id,
-			ap.status                   AS status,
-			ap."createdAt"              AS created_at,
-			ap."createdBy"              AS created_by,
-			ap."updatedAt"              AS updated_at,
-			ap."updatedBy"              AS updated_by,
-			ap."isDelete"               AS is_delete,
-			ap.product_name             AS product_name,
-			ap."purchaseOrderId"        AS purchase_order_id,
-			ap."SKU"                    AS sku,
-			ap."productBranchId"        AS product_branch_id,
-			ap.quantity                 AS quantity,
-			po."invoiceFinalNumber"     AS invoice_final_number
-		FROM "purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" AS ap
-		LEFT JOIN "purchaseOrderMgmt"."PurchaseOrders" po 
-			ON ap."purchaseOrderId" = po.purchase_order_id
-		WHERE ap."isDelete" = false
-		ORDER BY ap.product_instance_id DESC;
+		SELECT
+		ap.product_instance_id AS product_instance_id,
+		ap.po_product_id AS po_product_id,
+		ap.line_number AS line_number,
+		ap.reference_number AS reference_number,
+		ap.product_description AS product_description,
+		ap.discount AS discount,
+		ap.unit_price AS unit_price,
+		ap.discount_price AS discount_price,
+		ap.margin AS margin,
+		ap.total_amount AS total_amount,
+		ap.category_id AS category_id,
+		ap.sub_category_id AS sub_category_id,
+		ap.status AS status,
+		ap."createdAt" AS created_at,
+		ap."createdBy" AS created_by,
+		ap."updatedAt" AS updated_at,
+		ap."updatedBy" AS updated_by,
+		ap."isDelete" AS is_delete,
+		ap.product_name AS product_name,
+		ap."purchaseOrderId" AS purchase_order_id,
+		ap."SKU" AS sku,
+		ap."productBranchId" AS product_branch_id,
+		ap.quantity AS quantity,
+		po."invoiceFinalNumber" AS invoice_final_number,
+		c."categoryName" AS category_name,
+		sc."subCategoryName" AS sub_category_name,
+		b."refBranchName" AS branch_name
+		FROM
+		"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" AS ap
+		LEFT JOIN "purchaseOrderMgmt"."PurchaseOrders" po ON ap."purchaseOrderId" = po.purchase_order_id
+		LEFT JOIN public."Categories" c ON c."refCategoryid" = ap.category_id
+		LEFT JOIN public."SubCategories" sc ON sc."refSubCategoryId" = ap.sub_category_id
+		LEFT JOIN public."Branches" b ON b."refBranchId" = ap."productBranchId"
+		WHERE
+		ap."isDelete" = false
+		ORDER BY
+		ap.product_instance_id DESC;
 	`
 
 	err := db.Raw(rawQuery).Scan(&results).Error
