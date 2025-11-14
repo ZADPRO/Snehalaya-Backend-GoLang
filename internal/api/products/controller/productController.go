@@ -150,3 +150,72 @@ func getUserContext(c *gin.Context) (interface{}, interface{}, interface{}) {
 	}
 	return idValue, roleIdValue, branchIdValue
 }
+
+type CheckSKURequest struct {
+	FromBranchID int    `json:"fromBranchId" binding:"required"`
+	SKU          string `json:"sku" binding:"required"`
+}
+
+func CheckSKUInBranchController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req CheckSKURequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		product, found, branchName, err := productService.GetProductBySKUInBranch(dbConn, req.FromBranchID, req.SKU)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		if found {
+			c.JSON(http.StatusOK, gin.H{
+				"status":     true,
+				"data":       product,
+				"branchName": branchName,
+			})
+		} else {
+			c.JSON(http.StatusOK, gin.H{
+				"status":     false,
+				"branchId":   req.FromBranchID,
+				"branchName": branchName,
+				"message":    "SKU not found in the mentioned branch",
+			})
+		}
+	}
+}
+
+func GetBranch4ProductsController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		// Call service
+		products, err := productService.GetProductsByBranchID(dbConn, 4) // branchId = 4
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		if len(products) == 0 {
+			c.JSON(http.StatusOK, gin.H{
+				"status":  false,
+				"message": "No products found for branch 4",
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   products,
+		})
+	}
+}

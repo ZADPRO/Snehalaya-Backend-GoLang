@@ -329,6 +329,31 @@ func GetAcceptedProductsController() gin.HandlerFunc {
 	}
 }
 
+func GetPurchaseOrderDetailsHandler(c *gin.Context) {
+	log := logger.InitLogger()
+	poNumber := c.Param("purchaseOrderNumber")
+	if poNumber == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "PurchaseOrderNumber is required"})
+		return
+	}
+
+	dbConn, sqlDB := db.InitDB()
+	defer sqlDB.Close()
+
+	response, err := poService.GetPurchaseOrderFullDetailsService(dbConn, poNumber)
+	if err != nil {
+		log.Error("❌ Failed to get PO details: " + err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  true,
+		"message": "Purchase order details retrieved successfully",
+		"data":    response,
+	})
+}
+
 func GetAllPurchaseOrderAcceptedProductsController() gin.HandlerFunc {
 	log := logger.InitLogger()
 

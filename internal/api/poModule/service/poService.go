@@ -11,7 +11,6 @@ import (
 	poModuleModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/poModule/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
-
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOrderPayload, roleName string) (string, error) {
@@ -1020,4 +1019,117 @@ func GetAllPurchaseOrderAcceptedProductsService(db *gorm.DB) []PurchaseOrderAcce
 
 	log.Infof("✅ Retrieved %d accepted products", len(results))
 	return results
+}
+
+func GetPurchaseOrderFullDetailsService(db *gorm.DB, purchaseOrderNumber string) (PurchaseOrderDetailsResponse, error) {
+	log := logger.InitLogger()
+	var response PurchaseOrderDetailsResponse
+
+	// Step 1: Fetch PO ID and Invoice using raw SQL
+	var po struct {
+		PurchaseOrderId    int
+		InvoiceFinalNumber string
+	}
+	poQuery := `
+SELECT
+    po."purchase_order_id",
+    po."invoiceFinalNumber"
+FROM
+    "purchaseOrderMgmt"."PurchaseOrders" po
+WHERE
+    po."purchase_order_id" = ?
+ORDER BY
+    po."purchase_order_id" ASC
+LIMIT 1;
+`
+
+	err := db.Raw(poQuery, purchaseOrderNumber).Scan(&po).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) || po.PurchaseOrderId == 0 {
+		return response, fmt.Errorf("purchase order not found")
+	}
+	if err != nil {
+		return response, err
+	}
+
+	response.PurchaseOrderId = po.PurchaseOrderId
+	response.InvoiceFinalNumber = po.InvoiceFinalNumber
+
+	// Step 2: Fetch all accepted products (dialog rows)
+	var acceptedProducts []Product
+	productQuery := `
+SELECT 
+    ap.po_product_id,
+    ap.line_number,
+    ap.reference_number,
+    ap.product_description,
+    ap.discount,
+    ap.unit_price,
+    ap.discount_price,
+    ap.margin,
+    ap.total_amount,
+    ap.category_id,
+    c."categoryName" AS category_name,
+    ap.sub_category_id,
+    sc."subCategoryName" AS sub_category_name,
+    ap.product_name,
+    ap."SKU"
+FROM "purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" AS ap
+LEFT JOIN public."Categories" AS c ON c."refCategoryid" = ap.category_id
+LEFT JOIN public."SubCategories" AS sc ON sc."refSubCategoryId" = ap.sub_category_id
+WHERE ap.po_product_id = $1
+ORDER BY ap.po_product_id ASC;
+`
+
+	var rows []struct {
+		PoProductId        int
+		LineNumber         int
+		ReferenceNumber    string
+		ProductDescription string
+		Discount           float64
+		UnitPrice          float64
+		DiscountPrice      float64
+		Margin             float64
+		TotalAmount        string
+		CategoryId         int
+		CategoryName       string
+		SubCategoryId      int
+		SubCategoryName    string
+		ProductName        string
+		SKU                string
+	}
+
+	if err := db.Raw(productQuery, po.PurchaseOrderId).Scan(&rows).Error; err != nil {
+		log.Error("❌ Failed to fetch accepted products: " + err.Error())
+		return response, err
+	}
+
+	// Map rows into Product + DialogRows
+	productMap := map[int]*Product{}
+	for _, row := range rows {
+		if _, exists := productMap[row.PoProductId]; !exists {
+			productMap[row.PoProductId] = &Product{
+				ProductName:   row.ProductName,
+				CategoryId:    row.CategoryId,
+				SubCategoryId: row.SubCategoryId,
+				DialogRows:    []DialogRow{},
+			}
+		}
+		productMap[row.PoProductId].DialogRows = append(productMap[row.PoProductId].DialogRows, DialogRow{
+			LineNumber:         row.LineNumber,
+			ReferenceNumber:    row.ReferenceNumber,
+			ProductDescription: row.ProductDescription,
+			Discount:           row.Discount,
+			Price:              row.UnitPrice,
+			DiscountPrice:      row.DiscountPrice,
+			Margin:             row.Margin,
+			TotalAmount:        row.TotalAmount,
+		})
+	}
+
+	for _, p := range productMap {
+		acceptedProducts = append(acceptedProducts, *p)
+	}
+
+	response.Products = acceptedProducts
+	return response, nil
 }

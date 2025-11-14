@@ -125,3 +125,60 @@ func DeletePOProduct(db *gorm.DB, id string) error {
 			"updatedBy": "Admin",
 		}).Error
 }
+
+type ProductWithBranch struct {
+	productModel.PurchaseOrderProduct
+	RefBranchName string `gorm:"column:refBranchName"`
+}
+
+func GetProductBySKUInBranch(db *gorm.DB, branchID int, sku string) (ProductWithBranch, bool, string, error) {
+	var result ProductWithBranch
+
+	// Query product with branch join
+	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" p`).
+		Select(`p.*, b."refBranchName"`).
+		Joins(`JOIN public."Branches" b ON p."productBranchId" = b."refBranchId"`).
+		Where(`p."productBranchId" = ? AND p."SKU" = ? AND p."isDelete" = false`, branchID, sku).
+		Order(`p.product_instance_id`).
+		Limit(1).
+		Scan(&result).Error
+
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// SKU not found, fetch branch name
+			var branch struct{ RefBranchName string }
+			if bErr := db.Table(`public."Branches"`).
+				Select(`"refBranchName"`).
+				Where(`"refBranchId" = ?`, branchID).
+				First(&branch).Error; bErr != nil {
+				return result, false, "", fmt.Errorf("branch not found")
+			}
+			return result, false, branch.RefBranchName, nil
+		}
+		return result, false, "", err
+	}
+
+	// Found product, return with branch name
+	return result, true, result.RefBranchName, nil
+}
+
+type Product4Branch struct {
+	productModel.PurchaseOrderProduct
+}
+
+func GetProductsByBranchID(db *gorm.DB, branchID int) ([]Product4Branch, error) {
+	var products []Product4Branch
+
+	// Fetch products only for this branch
+	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" p`).
+		Select(`p.*`).
+		Where(`p."productBranchId" = ? AND p."isDelete" = false AND p.status = 'Active'`, branchID).
+		Order(`p.product_instance_id`).
+		Scan(&products).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return products, nil
+}

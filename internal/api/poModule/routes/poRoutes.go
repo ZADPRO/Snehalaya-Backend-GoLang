@@ -4,6 +4,7 @@ import (
 	poController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/poModule/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
+
 )
 
 func PurchaseOrderRoutes(route *gin.Engine) {
@@ -19,6 +20,8 @@ func PurchaseOrderRoutes(route *gin.Engine) {
 		po.POST("/savePurchaseOrderProducts", accesstoken.JWTMiddleware(), poController.SavePurchaseOrderProductsController())
 		po.GET("/getAcceptedProducts/:purchaseOrderId", accesstoken.JWTMiddleware(), poController.GetAcceptedProductsController())
 		po.GET("/details/:purchaseOrderNumber", accesstoken.JWTMiddleware(), poController.GetPurchaseOrderDetailsController())
+
+		po.GET("/indivPODetails/:purchaseOrderNumber", poController.GetPurchaseOrderDetailsHandler)
 
 		po.GET("/purchaseOrderAcceptedProducts", accesstoken.JWTMiddleware(), poController.GetAllPurchaseOrderAcceptedProductsController())
 

@@ -17,3 +17,30 @@ type POProduct struct {
 	UpdatedBy     string `json:"updatedBy" gorm:"column:updatedBy"`
 	IsDelete      bool   `json:"isDelete" gorm:"column:isDelete"`
 }
+
+type PurchaseOrderProduct struct {
+	ProductInstanceID  int    `json:"productInstanceId"`
+	PoProductID        int    `json:"poProductId"`
+	LineNumber         string `json:"lineNumber"`
+	ReferenceNumber    string `json:"referenceNumber"`
+	ProductDescription string `json:"productDescription"`
+	Discount           string `json:"discount"`
+	UnitPrice          string `json:"unitPrice"`
+	DiscountPrice      string `json:"discountPrice"`
+	Margin             string `json:"margin"`
+	TotalAmount        string `json:"totalAmount"`
+	CategoryID         int    `json:"categoryId"`
+	SubCategoryID      int    `json:"subCategoryId"`
+	Status             string `json:"status"`
+	CreatedAt          string `json:"createdAt"`
+	CreatedBy          string `json:"createdBy"`
+	UpdatedAt          string `json:"updatedAt"`
+	UpdatedBy          string `json:"updatedBy"`
+	IsDelete           bool   `json:"isDelete"`
+	ProductName        string `json:"productName"`
+	PurchaseOrderID    int    `json:"purchaseOrderId"`
+	SKU                string `json:"SKU"`
+	ProductBranchID    int    `json:"productBranchId"`
+	Quantity           string `json:"quantity"`
+	BranchName         string `json:"branchName" gorm:"-"` // not in table, for response
+}
