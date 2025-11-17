@@ -2,6 +2,7 @@ package productController
 
 import (
 	"net/http"
+	"strconv"
 
 	productModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/model"
 	productService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/service"
@@ -246,6 +247,79 @@ func CreateStockTransfer() gin.HandlerFunc {
 			"status":     true,
 			"message":    "Stock transfer created successfully",
 			"transferId": transferID,
+		})
+	}
+}
+
+func GetStockTransferByIDController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		idStr := c.Param("id")
+		transferId, err := strconv.Atoi(idStr)
+		if err != nil {
+			c.JSON(400, gin.H{"status": false, "message": "Invalid ID"})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		transfer, items, err := productService.GetStockTransferByID(dbConn, transferId)
+		if err != nil {
+			c.JSON(404, gin.H{"status": false, "message": "Stock transfer not found"})
+			return
+		}
+
+		c.JSON(200, gin.H{
+			"status":   true,
+			"transfer": transfer,
+			"items":    items,
+		})
+	}
+}
+
+func GetStockTransfersController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		toBranchIdStr := c.Query("toBranchId")
+
+		toBranchId, err := strconv.Atoi(toBranchIdStr)
+		if err != nil {
+			c.JSON(400, gin.H{"status": false, "message": "Invalid branch ID"})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		transfers, err := productService.GetStockTransfers(dbConn, toBranchId)
+		if err != nil {
+			c.JSON(500, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		c.JSON(200, gin.H{
+			"status": true,
+			"data":   transfers,
+		})
+	}
+}
+
+func GetAllStockTransfersController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		transfers, err := productService.GetAllStockTransfers(dbConn)
+		if err != nil {
+			c.JSON(500, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		c.JSON(200, gin.H{
+			"status": true,
+			"data":   transfers,
 		})
 	}
 }

@@ -238,3 +238,75 @@ func CreateStockTransfer(db *gorm.DB, payload productModel.StockTransferRequest)
 
 	return transfer.StockTransferID, nil
 }
+
+func GetStockTransferByID(db *gorm.DB, transferId int) (*productModel.StockTransfer, []productModel.StockTransferItem, error) {
+
+	var transfer productModel.StockTransfer
+	var items []productModel.StockTransferItem
+
+	// Fetch parent
+	if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransfers"`).
+		Where(`stock_transfer_id = ? AND is_delete = false`, transferId).
+		First(&transfer).Error; err != nil {
+		return nil, nil, err
+	}
+
+	// Fetch items
+	if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransferItems"`).
+		Where(`stock_transfer_id = ?`, transferId).
+		Find(&items).Error; err != nil {
+		return &transfer, nil, err
+	}
+
+	return &transfer, items, nil
+}
+
+func GetStockTransfers(db *gorm.DB, toBranchId int) ([]productModel.StockTransfer, error) {
+
+	var transfers []productModel.StockTransfer
+
+	query := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransfers"`).
+		Where(`"to_branch_id" = ? AND "is_delete" = false`, toBranchId).
+		Order(`stock_transfer_id DESC`)
+
+	if err := query.Find(&transfers).Error; err != nil {
+		return nil, err
+	}
+
+	return transfers, nil
+}
+
+func GetAllStockTransfers(db *gorm.DB) ([]productModel.StockTransfer, error) {
+
+	var transfers []productModel.StockTransfer
+
+	// Fetch all parent transfers
+	if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransfers"`).
+		Where(`is_delete = false`).
+		Order(`stock_transfer_id DESC`).
+		Find(&transfers).Error; err != nil {
+		return nil, err
+	}
+
+	// Fetch all items
+	var items []productModel.StockTransferItem
+
+	if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransferItems"`).
+		Find(&items).Error; err != nil {
+		return nil, err
+	}
+
+	// Map items under each parent
+	itemMap := make(map[int][]productModel.StockTransferItem)
+	for _, item := range items {
+		itemMap[item.StockTransferID] = append(itemMap[item.StockTransferID], item)
+	}
+
+	// Attach items to parent
+	for i := range transfers {
+		id := transfers[i].StockTransferID
+		transfers[i].Items = itemMap[id]
+	}
+
+	return transfers, nil
+}

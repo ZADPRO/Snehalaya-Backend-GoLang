@@ -114,27 +114,28 @@ func (StockTransferItem) TableName() string {
 }
 
 type StockTransfer struct {
-	StockTransferID   int    `gorm:"column:stock_transfer_id;primaryKey" json:"stockTransferId"`
-	FromBranchID      int    `gorm:"column:from_branch_id" json:"fromBranchId"`
-	FromBranchName    string `gorm:"column:from_branch_name" json:"fromBranchName"`
-	FromBranchEmail   string `gorm:"column:from_branch_email" json:"fromBranchEmail"`
-	FromBranchAddress string `gorm:"column:from_branch_address" json:"fromBranchAddress"`
-	ToBranchID        int    `gorm:"column:to_branch_id" json:"toBranchId"`
-	ToBranchName      string `gorm:"column:to_branch_name" json:"toBranchName"`
-	ToBranchEmail     string `gorm:"column:to_branch_email" json:"toBranchEmail"`
-	ToBranchAddress   string `gorm:"column:to_branch_address" json:"toBranchAddress"`
-	ModeOfTransport   string `gorm:"column:mode_of_transport" json:"modeOfTransport"`
-	SubTotal          string `gorm:"column:sub_total" json:"subTotal"`
-	DiscountOverall   string `gorm:"column:discount_overall" json:"discountOverall"`
-	TotalAmount       string `gorm:"column:total_amount" json:"totalAmount"`
-	PaymentPending    string `gorm:"column:payment_pending" json:"paymentPending"`
-	PoNumber          string `gorm:"column:po_number" json:"poNumber"`
-	Status            int    `gorm:"column:status" json:"status"`
-	CreatedAt         string `gorm:"column:created_at" json:"createdAt"`
-	CreatedBy         string `gorm:"column:created_by" json:"createdBy"`
-	UpdatedAt         string `gorm:"column:updated_at" json:"updatedAt"`
-	UpdatedBy         string `gorm:"column:updated_by" json:"updatedBy"`
-	IsDelete          bool   `gorm:"column:is_delete" json:"isDelete"`
+	StockTransferID   int                 `gorm:"column:stock_transfer_id;primaryKey" json:"stockTransferId"`
+	FromBranchID      int                 `gorm:"column:from_branch_id" json:"fromBranchId"`
+	FromBranchName    string              `gorm:"column:from_branch_name" json:"fromBranchName"`
+	FromBranchEmail   string              `gorm:"column:from_branch_email" json:"fromBranchEmail"`
+	FromBranchAddress string              `gorm:"column:from_branch_address" json:"fromBranchAddress"`
+	ToBranchID        int                 `gorm:"column:to_branch_id" json:"toBranchId"`
+	ToBranchName      string              `gorm:"column:to_branch_name" json:"toBranchName"`
+	ToBranchEmail     string              `gorm:"column:to_branch_email" json:"toBranchEmail"`
+	ToBranchAddress   string              `gorm:"column:to_branch_address" json:"toBranchAddress"`
+	ModeOfTransport   string              `gorm:"column:mode_of_transport" json:"modeOfTransport"`
+	SubTotal          string              `gorm:"column:sub_total" json:"subTotal"`
+	DiscountOverall   string              `gorm:"column:discount_overall" json:"discountOverall"`
+	TotalAmount       string              `gorm:"column:total_amount" json:"totalAmount"`
+	PaymentPending    string              `gorm:"column:payment_pending" json:"paymentPending"`
+	PoNumber          string              `gorm:"column:po_number" json:"poNumber"`
+	Status            int                 `gorm:"column:status" json:"status"`
+	CreatedAt         string              `gorm:"column:created_at" json:"createdAt"`
+	CreatedBy         string              `gorm:"column:created_by" json:"createdBy"`
+	UpdatedAt         string              `gorm:"column:updated_at" json:"updatedAt"`
+	UpdatedBy         string              `gorm:"column:updated_by" json:"updatedBy"`
+	IsDelete          bool                `gorm:"column:is_delete" json:"isDelete"`
+	Items             []StockTransferItem `json:"items" gorm:"-"`
 }
 
 func (StockTransfer) TableName() string {
