@@ -245,3 +245,126 @@ type PurchaseOrderListResponse struct {
 	BranchName            string                       `json:"branchName"`
 	Products              []PurchaseOrderProductLatest `json:"products" gorm:"-"` // ✅ correct
 }
+
+type PurchaseOrderAcceptedProductResponse struct {
+	ProductInstanceID  int    `json:"productInstanceId" gorm:"column:product_instance_id"`
+	PoProductID        int    `json:"poProductId" gorm:"column:po_product_id"`
+	LineNumber         string `json:"lineNumber" gorm:"column:line_number"`
+	ReferenceNumber    string `json:"referenceNumber" gorm:"column:reference_number"`
+	ProductDescription string `json:"productDescription" gorm:"column:product_description"`
+	Discount           string `json:"discount" gorm:"column:discount"`
+	UnitPrice          string `json:"unitPrice" gorm:"column:unit_price"`
+	DiscountPrice      string `json:"discountPrice" gorm:"column:discount_price"`
+	Margin             string `json:"margin" gorm:"column:margin"`
+	TotalAmount        string `json:"totalAmount" gorm:"column:total_amount"`
+	CategoryID         int    `json:"categoryId" gorm:"column:category_id"`
+	SubCategoryID      int    `json:"subCategoryId" gorm:"column:sub_category_id"`
+	Status             string `json:"status" gorm:"column:status"`
+	CreatedAt          string `json:"createdAt" gorm:"column:created_at"`
+	CreatedBy          string `json:"createdBy" gorm:"column:created_by"`
+	UpdatedAt          string `json:"updatedAt" gorm:"column:updated_at"`
+	UpdatedBy          string `json:"updatedBy" gorm:"column:updated_by"`
+	IsDelete           bool   `json:"isDelete" gorm:"column:is_delete"`
+	ProductName        string `json:"productName" gorm:"column:product_name"`
+	PurchaseOrderId    int    `json:"purchaseOrderId" gorm:"column:purchase_order_id"`
+	SKU                string `json:"sku" gorm:"column:sku"`
+	ProductBranchId    int    `json:"productBranchId" gorm:"column:product_branch_id"`
+	Quantity           string `json:"quantity" gorm:"column:quantity"`
+	InvoiceFinalNumber string `json:"invoiceFinalNumber" gorm:"column:invoice_final_number"`
+	CategoryName       string `json:"categoryName" gorm:"column:category_name"`
+	SubCategoryName    string `json:"subCategoryName" gorm:"column:sub_category_name"`
+	BranchName         string `json:"branchName" gorm:"column:branch_name"`
+}
+
+type PurchaseOrderAcceptedProduct struct {
+	ProductInstanceId  int     `json:"product_instance_id" gorm:"column:product_instance_id"`
+	PoProductId        int     `json:"po_product_id" gorm:"column:po_product_id"`
+	PurchaseOrderId    int     `json:"purchaseOrderId" gorm:"column:purchaseOrderId"`
+	LineNumber         string  `json:"line_number" gorm:"column:line_number"`
+	ReferenceNumber    string  `json:"reference_number" gorm:"column:reference_number"`
+	ProductDescription string  `json:"product_description" gorm:"column:product_description"`
+	Discount           string  `json:"discount" gorm:"column:discount"`
+	UnitPrice          string  `json:"unit_price" gorm:"column:unit_price"`
+	DiscountPrice      string  `json:"discount_price" gorm:"column:discount_price"`
+	Margin             string  `json:"margin" gorm:"column:margin"`
+	TotalAmount        string  `json:"total_amount" gorm:"column:total_amount"`
+	CategoryId         int     `json:"category_id" gorm:"column:category_id"`
+	SubCategoryId      int     `json:"sub_category_id" gorm:"column:sub_category_id"`
+	ProductName        string  `json:"product_name" gorm:"column:product_name"`
+	SKU                string  `json:"SKU" gorm:"column:SKU"`
+	Status             string  `json:"status" gorm:"column:status"`
+	CreatedAt          string  `json:"createdAt" gorm:"column:createdAt"`
+	CreatedBy          string  `json:"createdBy" gorm:"column:createdBy"`
+	UpdatedAt          string  `json:"updatedAt" gorm:"column:updatedAt"`
+	UpdatedBy          string  `json:"updatedBy" gorm:"column:updatedBy"`
+	IsDelete           bool    `json:"isDelete" gorm:"column:isDelete"`
+	ProductBranchId    *int    `json:"productBranchId" gorm:"column:productBranchId"`
+	Quantity           *string `json:"quantity" gorm:"column:quantity"`
+}
+
+type AcceptedRow struct {
+	PoProductId        int     `gorm:"column:po_product_id"`
+	LineNumber         int     `gorm:"column:line_number"`
+	ReferenceNumber    string  `gorm:"column:reference_number"`
+	ProductDescription string  `gorm:"column:product_description"`
+	Discount           float64 `gorm:"column:discount"`
+	UnitPrice          float64 `gorm:"column:unit_price"`
+	DiscountPrice      float64 `gorm:"column:discount_price"`
+	Margin             float64 `gorm:"column:margin"`
+	TotalAmount        string  `gorm:"column:total_amount"`
+	CategoryId         int     `gorm:"column:category_id"`
+	CategoryName       string  `gorm:"column:category_name"`
+	SubCategoryId      int     `gorm:"column:sub_category_id"`
+	SubCategoryName    string  `gorm:"column:sub_category_name"`
+	ProductName        string  `gorm:"column:product_name"`
+	SKU                string  `gorm:"column:SKU"`
+}
+
+type ProductRow struct {
+	PoProductId     int     `gorm:"column:po_product_id"`
+	LineNumber      int     `gorm:"column:line_number"`
+	Description     string  `gorm:"column:description"`
+	CategoryId      int     `gorm:"column:category_id"`
+	CategoryName    string  `gorm:"column:category_name"`
+	SubCategoryId   int     `gorm:"column:sub_category_id"`
+	SubCategoryName string  `gorm:"column:sub_category_name"`
+	Quantity        int     `gorm:"column:quantity"`
+	UnitPrice       float64 `gorm:"column:unit_price"`
+}
+
+type DialogRow struct {
+	SNo                int     `json:"sNo"`
+	LineNumber         int     `json:"lineNumber"`
+	ReferenceNumber    string  `json:"referenceNumber"`
+	ProductDescription string  `json:"productDescription"`
+	Discount           float64 `json:"discount"`
+	Price              float64 `json:"price"`
+	DiscountPrice      float64 `json:"discountPrice"`
+	Margin             float64 `json:"margin"`
+	TotalAmount        string  `json:"totalAmount"`
+}
+
+type Product struct {
+	SNo             int         `json:"sNo"`
+	LineNumber      int         `json:"lineNumber"`
+	ProductName     string      `json:"productName"`
+	Brand           string      `json:"brand"`
+	CategoryId      int         `json:"categoryId"`
+	SubCategoryId   int         `json:"subCategoryId"`
+	TaxClass        string      `json:"taxClass"`
+	Quantity        int         `json:"quantity"`
+	Cost            float64     `json:"cost"`
+	ProfitMargin    float64     `json:"profitMargin"`
+	SellingPrice    float64     `json:"sellingPrice"`
+	Mrp             float64     `json:"mrp"`
+	DiscountPercent float64     `json:"discountPercent"`
+	DiscountPrice   float64     `json:"discountPrice"`
+	TotalAmount     string      `json:"totalAmount"`
+	DialogRows      []DialogRow `json:"dialogRows"`
+}
+
+type PurchaseOrderDetailsResponse struct {
+	PurchaseOrderId    int       `json:"purchaseOrderId"`
+	InvoiceFinalNumber string    `json:"invoiceFinalNumber"`
+	Products           []Product `json:"products"`
+}

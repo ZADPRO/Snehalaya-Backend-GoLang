@@ -658,45 +658,10 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 }
 
 // --- Structs ---
-type DialogRow struct {
-	SNo                int     `json:"sNo"`
-	LineNumber         int     `json:"lineNumber"`
-	ReferenceNumber    string  `json:"referenceNumber"`
-	ProductDescription string  `json:"productDescription"`
-	Discount           float64 `json:"discount"`
-	Price              float64 `json:"price"`
-	DiscountPrice      float64 `json:"discountPrice"`
-	Margin             float64 `json:"margin"`
-	TotalAmount        string  `json:"totalAmount"`
-}
 
-type Product struct {
-	SNo             int         `json:"sNo"`
-	LineNumber      int         `json:"lineNumber"`
-	ProductName     string      `json:"productName"`
-	Brand           string      `json:"brand"`
-	CategoryId      int         `json:"categoryId"`
-	SubCategoryId   int         `json:"subCategoryId"`
-	TaxClass        string      `json:"taxClass"`
-	Quantity        int         `json:"quantity"`
-	Cost            float64     `json:"cost"`
-	ProfitMargin    float64     `json:"profitMargin"`
-	SellingPrice    float64     `json:"sellingPrice"`
-	Mrp             float64     `json:"mrp"`
-	DiscountPercent float64     `json:"discountPercent"`
-	DiscountPrice   float64     `json:"discountPrice"`
-	DialogRows      []DialogRow `json:"dialogRows"`
-}
-
-type PurchaseOrderDetailsResponse struct {
-	PurchaseOrderId    int       `json:"purchaseOrderId"`
-	InvoiceFinalNumber string    `json:"invoiceFinalNumber"`
-	Products           []Product `json:"products"`
-}
-
-func GetPurchaseOrderDetailsService(db *gorm.DB, purchaseOrderNumber string) (PurchaseOrderDetailsResponse, error) {
+func GetPurchaseOrderDetailsService(db *gorm.DB, purchaseOrderNumber string) (poModuleModel.PurchaseOrderDetailsResponse, error) {
 	log := logger.InitLogger()
-	var response PurchaseOrderDetailsResponse
+	var response poModuleModel.PurchaseOrderDetailsResponse
 
 	// Step 1: Get purchase order basic info (ID + invoice number)
 	var po struct {
@@ -715,19 +680,8 @@ func GetPurchaseOrderDetailsService(db *gorm.DB, purchaseOrderNumber string) (Pu
 	}
 
 	// Step 2: Fetch PO products (join with categories/subcategories)
-	type ProductRow struct {
-		PoProductId     int     `gorm:"column:po_product_id"`
-		LineNumber      int     `gorm:"column:line_number"`
-		Description     string  `gorm:"column:description"`
-		CategoryId      int     `gorm:"column:category_id"`
-		CategoryName    string  `gorm:"column:category_name"`
-		SubCategoryId   int     `gorm:"column:sub_category_id"`
-		SubCategoryName string  `gorm:"column:sub_category_name"`
-		Quantity        int     `gorm:"column:quantity"`
-		UnitPrice       float64 `gorm:"column:unit_price"`
-	}
 
-	var poProducts []ProductRow
+	var poProducts []poModuleModel.ProductRow
 	err = db.Table(`"purchaseOrderMgmt"."PurchaseOrderProducts" AS pop`).
 		Select(`
 			pop."po_product_id",
@@ -749,25 +703,8 @@ func GetPurchaseOrderDetailsService(db *gorm.DB, purchaseOrderNumber string) (Pu
 	}
 
 	// Step 3: Fetch accepted products (dialog rows + category/subcategory)
-	type AcceptedRow struct {
-		PoProductId        int     `gorm:"column:po_product_id"`
-		LineNumber         int     `gorm:"column:line_number"`
-		ReferenceNumber    string  `gorm:"column:reference_number"`
-		ProductDescription string  `gorm:"column:product_description"`
-		Discount           float64 `gorm:"column:discount"`
-		UnitPrice          float64 `gorm:"column:unit_price"`
-		DiscountPrice      float64 `gorm:"column:discount_price"`
-		Margin             float64 `gorm:"column:margin"`
-		TotalAmount        string  `gorm:"column:total_amount"`
-		CategoryId         int     `gorm:"column:category_id"`
-		CategoryName       string  `gorm:"column:category_name"`
-		SubCategoryId      int     `gorm:"column:sub_category_id"`
-		SubCategoryName    string  `gorm:"column:sub_category_name"`
-		ProductName        string  `gorm:"column:product_name"`
-		SKU                string  `gorm:"column:SKU"`
-	}
 
-	var acceptedProducts []AcceptedRow
+	var acceptedProducts []poModuleModel.AcceptedRow
 	err = db.Table(`"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" AS ap`).
 		Select(`
 			ap."po_product_id",
@@ -796,14 +733,14 @@ func GetPurchaseOrderDetailsService(db *gorm.DB, purchaseOrderNumber string) (Pu
 	}
 
 	// Step 4: Combine both into final response
-	var responseProducts []Product
+	var responseProducts []poModuleModel.Product
 	sNo := 1
 	for _, p := range poProducts {
-		var rows []DialogRow
+		var rows []poModuleModel.DialogRow
 		rowIndex := 1
 		for _, ap := range acceptedProducts {
 			if ap.PoProductId == p.PoProductId {
-				rows = append(rows, DialogRow{
+				rows = append(rows, poModuleModel.DialogRow{
 					SNo:                rowIndex,
 					LineNumber:         ap.LineNumber,
 					ReferenceNumber:    ap.ReferenceNumber,
@@ -818,7 +755,7 @@ func GetPurchaseOrderDetailsService(db *gorm.DB, purchaseOrderNumber string) (Pu
 			}
 		}
 
-		responseProducts = append(responseProducts, Product{
+		responseProducts = append(responseProducts, poModuleModel.Product{
 			SNo:             sNo,
 			LineNumber:      p.LineNumber,
 			ProductName:     p.Description,
@@ -838,7 +775,7 @@ func GetPurchaseOrderDetailsService(db *gorm.DB, purchaseOrderNumber string) (Pu
 		sNo++
 	}
 
-	response = PurchaseOrderDetailsResponse{
+	response = poModuleModel.PurchaseOrderDetailsResponse{
 		PurchaseOrderId:    po.PurchaseOrderId,
 		InvoiceFinalNumber: po.InvoiceFinalNumber,
 		Products:           responseProducts,
@@ -853,33 +790,8 @@ func GetAcceptedProductsService(db *gorm.DB, purchaseOrderId string) ([]map[stri
 	log.Infof("🔍 Fetching accepted products for PurchaseOrderId: %s", purchaseOrderId)
 
 	// --- Define model mapping DB columns ---
-	type PurchaseOrderAcceptedProduct struct {
-		ProductInstanceId  int     `json:"product_instance_id" gorm:"column:product_instance_id"`
-		PoProductId        int     `json:"po_product_id" gorm:"column:po_product_id"`
-		PurchaseOrderId    int     `json:"purchaseOrderId" gorm:"column:purchaseOrderId"`
-		LineNumber         string  `json:"line_number" gorm:"column:line_number"`
-		ReferenceNumber    string  `json:"reference_number" gorm:"column:reference_number"`
-		ProductDescription string  `json:"product_description" gorm:"column:product_description"`
-		Discount           string  `json:"discount" gorm:"column:discount"`
-		UnitPrice          string  `json:"unit_price" gorm:"column:unit_price"`
-		DiscountPrice      string  `json:"discount_price" gorm:"column:discount_price"`
-		Margin             string  `json:"margin" gorm:"column:margin"`
-		TotalAmount        string  `json:"total_amount" gorm:"column:total_amount"`
-		CategoryId         int     `json:"category_id" gorm:"column:category_id"`
-		SubCategoryId      int     `json:"sub_category_id" gorm:"column:sub_category_id"`
-		ProductName        string  `json:"product_name" gorm:"column:product_name"`
-		SKU                string  `json:"SKU" gorm:"column:SKU"`
-		Status             string  `json:"status" gorm:"column:status"`
-		CreatedAt          string  `json:"createdAt" gorm:"column:createdAt"`
-		CreatedBy          string  `json:"createdBy" gorm:"column:createdBy"`
-		UpdatedAt          string  `json:"updatedAt" gorm:"column:updatedAt"`
-		UpdatedBy          string  `json:"updatedBy" gorm:"column:updatedBy"`
-		IsDelete           bool    `json:"isDelete" gorm:"column:isDelete"`
-		ProductBranchId    *int    `json:"productBranchId" gorm:"column:productBranchId"`
-		Quantity           *string `json:"quantity" gorm:"column:quantity"`
-	}
 
-	var records []PurchaseOrderAcceptedProduct
+	var records []poModuleModel.PurchaseOrderAcceptedProduct
 
 	// --- Fetch only active (non-deleted) records ---
 	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts"`).
@@ -933,41 +845,11 @@ func GetAcceptedProductsService(db *gorm.DB, purchaseOrderId string) ([]map[stri
 	return result, nil
 }
 
-type PurchaseOrderAcceptedProductResponse struct {
-	ProductInstanceID  int    `json:"productInstanceId" gorm:"column:product_instance_id"`
-	PoProductID        int    `json:"poProductId" gorm:"column:po_product_id"`
-	LineNumber         string `json:"lineNumber" gorm:"column:line_number"`
-	ReferenceNumber    string `json:"referenceNumber" gorm:"column:reference_number"`
-	ProductDescription string `json:"productDescription" gorm:"column:product_description"`
-	Discount           string `json:"discount" gorm:"column:discount"`
-	UnitPrice          string `json:"unitPrice" gorm:"column:unit_price"`
-	DiscountPrice      string `json:"discountPrice" gorm:"column:discount_price"`
-	Margin             string `json:"margin" gorm:"column:margin"`
-	TotalAmount        string `json:"totalAmount" gorm:"column:total_amount"`
-	CategoryID         int    `json:"categoryId" gorm:"column:category_id"`
-	SubCategoryID      int    `json:"subCategoryId" gorm:"column:sub_category_id"`
-	Status             string `json:"status" gorm:"column:status"`
-	CreatedAt          string `json:"createdAt" gorm:"column:created_at"`
-	CreatedBy          string `json:"createdBy" gorm:"column:created_by"`
-	UpdatedAt          string `json:"updatedAt" gorm:"column:updated_at"`
-	UpdatedBy          string `json:"updatedBy" gorm:"column:updated_by"`
-	IsDelete           bool   `json:"isDelete" gorm:"column:is_delete"`
-	ProductName        string `json:"productName" gorm:"column:product_name"`
-	PurchaseOrderId    int    `json:"purchaseOrderId" gorm:"column:purchase_order_id"`
-	SKU                string `json:"sku" gorm:"column:sku"`
-	ProductBranchId    int    `json:"productBranchId" gorm:"column:product_branch_id"`
-	Quantity           string `json:"quantity" gorm:"column:quantity"`
-	InvoiceFinalNumber string `json:"invoiceFinalNumber" gorm:"column:invoice_final_number"`
-	CategoryName       string `json:"categoryName" gorm:"column:category_name"`
-	SubCategoryName    string `json:"subCategoryName" gorm:"column:sub_category_name"`
-	BranchName         string `json:"branchName" gorm:"column:branch_name"`
-}
-
-func GetAllPurchaseOrderAcceptedProductsService(db *gorm.DB) []PurchaseOrderAcceptedProductResponse {
+func GetAllPurchaseOrderAcceptedProductsService(db *gorm.DB) []poModuleModel.PurchaseOrderAcceptedProductResponse {
 	log := logger.InitLogger()
 	log.Info("💾 GetAllPurchaseOrderAcceptedProductsService invoked")
 
-	var results []PurchaseOrderAcceptedProductResponse
+	var results []poModuleModel.PurchaseOrderAcceptedProductResponse
 
 	rawQuery := `
 		SELECT
@@ -1021,9 +903,9 @@ func GetAllPurchaseOrderAcceptedProductsService(db *gorm.DB) []PurchaseOrderAcce
 	return results
 }
 
-func GetPurchaseOrderFullDetailsService(db *gorm.DB, purchaseOrderNumber string) (PurchaseOrderDetailsResponse, error) {
+func GetPurchaseOrderFullDetailsService(db *gorm.DB, purchaseOrderNumber string) (poModuleModel.PurchaseOrderDetailsResponse, error) {
 	log := logger.InitLogger()
-	var response PurchaseOrderDetailsResponse
+	var response poModuleModel.PurchaseOrderDetailsResponse
 
 	// Step 1: Fetch PO ID and Invoice using raw SQL
 	var po struct {
@@ -1055,7 +937,7 @@ LIMIT 1;
 	response.InvoiceFinalNumber = po.InvoiceFinalNumber
 
 	// Step 2: Fetch all accepted products (dialog rows)
-	var acceptedProducts []Product
+	var acceptedProducts []poModuleModel.Product
 	productQuery := `
 SELECT 
     ap.po_product_id,
@@ -1104,17 +986,17 @@ ORDER BY ap.po_product_id ASC;
 	}
 
 	// Map rows into Product + DialogRows
-	productMap := map[int]*Product{}
+	productMap := map[int]*poModuleModel.Product{}
 	for _, row := range rows {
 		if _, exists := productMap[row.PoProductId]; !exists {
-			productMap[row.PoProductId] = &Product{
+			productMap[row.PoProductId] = &poModuleModel.Product{
 				ProductName:   row.ProductName,
 				CategoryId:    row.CategoryId,
 				SubCategoryId: row.SubCategoryId,
-				DialogRows:    []DialogRow{},
+				DialogRows:    []poModuleModel.DialogRow{},
 			}
 		}
-		productMap[row.PoProductId].DialogRows = append(productMap[row.PoProductId].DialogRows, DialogRow{
+		productMap[row.PoProductId].DialogRows = append(productMap[row.PoProductId].DialogRows, poModuleModel.DialogRow{
 			LineNumber:         row.LineNumber,
 			ReferenceNumber:    row.ReferenceNumber,
 			ProductDescription: row.ProductDescription,
@@ -1127,6 +1009,17 @@ ORDER BY ap.po_product_id ASC;
 	}
 
 	for _, p := range productMap {
+		if len(p.DialogRows) > 0 {
+			first := p.DialogRows[0]
+			p.LineNumber = first.LineNumber
+			p.Cost = first.Price
+			p.ProfitMargin = first.Margin
+			p.DiscountPercent = first.Discount
+			p.DiscountPrice = first.DiscountPrice
+			p.Quantity = len(p.DialogRows)
+			p.TotalAmount = first.TotalAmount
+		}
+
 		acceptedProducts = append(acceptedProducts, *p)
 	}
 
