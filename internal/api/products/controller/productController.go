@@ -223,3 +223,29 @@ func GetBranch4ProductsController() gin.HandlerFunc {
 		})
 	}
 }
+
+func CreateStockTransfer() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var payload productModel.StockTransferRequest
+
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		transferID, err := productService.CreateStockTransfer(dbConn, payload)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":     true,
+			"message":    "Stock transfer created successfully",
+			"transferId": transferID,
+		})
+	}
+}

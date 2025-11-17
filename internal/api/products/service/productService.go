@@ -7,7 +7,6 @@ import (
 	productModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
-
 )
 
 func CreatePOProduct(db *gorm.DB, product *productModel.POProduct) error {
@@ -188,4 +187,54 @@ func GetProductsByBranchID(db *gorm.DB, branchID int) ([]Product4Branch, error) 
 	}
 
 	return products, nil
+}
+
+func CreateStockTransfer(db *gorm.DB, payload productModel.StockTransferRequest) (int, error) {
+
+	transfer := productModel.StockTransfer{
+		FromBranchID:      payload.BranchDetails.BranchId,
+		FromBranchName:    payload.BranchDetails.BranchName,
+		FromBranchEmail:   payload.BranchDetails.BranchEmail,
+		FromBranchAddress: payload.BranchDetails.BranchAddress,
+		ToBranchID:        payload.ReceivedBranchDetails.SupplierId,
+		ToBranchName:      payload.ReceivedBranchDetails.SupplierName,
+		ToBranchEmail:     payload.ReceivedBranchDetails.SupplierCompanyName,
+		ToBranchAddress:   payload.ReceivedBranchDetails.SupplierGSTNumber,
+		ModeOfTransport:   payload.TotalSummary.ModeOfTransport,
+		SubTotal:          payload.TotalSummary.SubTotal,
+		DiscountOverall:   payload.TotalSummary.DiscountOverall,
+		TotalAmount:       payload.TotalSummary.TotalAmount,
+		PaymentPending:    payload.TotalSummary.PaymentPending,
+		PoNumber:          payload.TotalSummary.PoNumber,
+		Status:            payload.TotalSummary.Status,
+		CreatedAt:         payload.TotalSummary.CreatedAt,
+		CreatedBy:         payload.TotalSummary.CreatedBy,
+		UpdatedAt:         payload.TotalSummary.UpdatedAt,
+		UpdatedBy:         payload.TotalSummary.UpdatedBy,
+		IsDelete:          false,
+	}
+
+	// Insert parent
+	if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransfers"`).Create(&transfer).Error; err != nil {
+		return 0, err
+	}
+
+	// Insert items
+	for _, p := range payload.ProductDetails {
+
+		item := productModel.StockTransferItem{
+			StockTransferID:   transfer.StockTransferID,
+			ProductInstanceID: 0,             // 	No ID from frontend
+			ProductName:       p.ProductName, // OK
+			SKU:               p.SKU,
+			IsReceived:        p.IsReceived,
+			AcceptanceStatus:  p.AcceptanceStatus,
+		}
+
+		if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransferItems"`).Create(&item).Error; err != nil {
+			return 0, fmt.Errorf("failed to insert item: %v", err)
+		}
+	}
+
+	return transfer.StockTransferID, nil
 }

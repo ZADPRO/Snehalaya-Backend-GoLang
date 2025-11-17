@@ -4,7 +4,6 @@ import (
 	productController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
-
 )
 
 func ProductManagementRoutes(router *gin.Engine) {
@@ -16,5 +15,10 @@ func ProductManagementRoutes(router *gin.Engine) {
 	route.DELETE("/delete/:id", accesstoken.JWTMiddleware(), productController.DeletePOProductController())
 	route.POST("/check-sku", accesstoken.JWTMiddleware(), productController.CheckSKUInBranchController())
 	route.GET("/branch-4-products", accesstoken.JWTMiddleware(), productController.GetBranch4ProductsController())
+
+	// INVENTORY STOCK TRANSFER
+	route.POST("/stock-transfer", accesstoken.JWTMiddleware(), productController.CreateStockTransfer())
+	// route.GET("/stock-transfer/:id", accesstoken.JWTMiddleware(), productController.GetStockTransferByID())
+	// route.GET("/stock-transfer", accesstoken.JWTMiddleware(), productController.GetAllStockTransfers())
 
 }
