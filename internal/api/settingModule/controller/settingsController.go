@@ -14,6 +14,44 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type CodeRequest struct {
+	InitialCategoryName string `json:"initialCategoryName"`
+}
+
+func CheckInitialCategoryCodeController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("➡ Check Initial Category Code Controller Invoked")
+
+		var req CodeRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid request"})
+			return
+		}
+
+		if req.InitialCategoryName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "InitialCategoryName is required"})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		// Call service to generate code
+		generatedCode, err := settingsService.CheckInitialCategoryCodeService(dbConn, req.InitialCategoryName)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":                true,
+			"generatedCategoryCode": generatedCode,
+		})
+	}
+}
+
 // INITIAL CATEGORY CONTROLLER
 func CreateInitialCategoryController() gin.HandlerFunc {
 	log := logger.InitLogger()

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	transactionLogger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/helper/transactions/service"
@@ -13,6 +14,42 @@ import (
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"gorm.io/gorm"
 )
+
+func CheckInitialCategoryCodeService(db *gorm.DB, categoryName string) (string, error) {
+	log := logger.InitLogger()
+	log.Info("➡ Check Initial Category Code Service Invoked")
+
+	// Prefix = first letter
+	prefix := strings.ToUpper(categoryName[:1])
+
+	// Find last code
+	var lastCategory model.InitialCategory
+	err := db.Table("InitialCategories").
+		Where(`"initialCategoryCode" LIKE ? AND "isDelete" = false`, prefix+"%").
+		Order(`"initialCategoryCode" DESC`).
+		First(&lastCategory).Error
+
+	newCode := ""
+
+	if err == gorm.ErrRecordNotFound {
+		// No previous prefix → start with S001
+		newCode = fmt.Sprintf("%s%03d", prefix, 1)
+	} else if err != nil {
+		return "", err
+	} else {
+		// Extract number
+		lastCode := lastCategory.InitialCategoryCode
+		num, parseErr := strconv.Atoi(string(lastCode[1:]))
+		if parseErr != nil {
+			return "", parseErr
+		}
+
+		newCode = fmt.Sprintf("%s%03d", prefix, num+1)
+	}
+
+	log.Infof("Generated Code: %s", newCode)
+	return newCode, nil
+}
 
 // INITIAL CATEGORY SERVICES
 func CreateInitialCategoryService(db *gorm.DB, initialCategory *model.InitialCategory, roleName string) error {

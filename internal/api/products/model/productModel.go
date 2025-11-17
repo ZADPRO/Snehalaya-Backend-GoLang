@@ -43,4 +43,5 @@ type PurchaseOrderProduct struct {
 	ProductBranchID    int    `json:"productBranchId"`
 	Quantity           string `json:"quantity"`
 	BranchName         string `json:"branchName" gorm:"-"` // not in table, for response
+	ProductBranchid    int    `json:"productBranchId" gorm:"productBranchId"`
 }

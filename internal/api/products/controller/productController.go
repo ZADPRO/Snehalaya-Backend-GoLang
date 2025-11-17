@@ -8,6 +8,7 @@ import (
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
+
 )
 
 func CreatePOProductController() gin.HandlerFunc {
@@ -176,17 +177,20 @@ func CheckSKUInBranchController() gin.HandlerFunc {
 		if found {
 			c.JSON(http.StatusOK, gin.H{
 				"status":     true,
+				"isPresent":  true,
 				"data":       product,
 				"branchName": branchName,
 			})
 		} else {
 			c.JSON(http.StatusOK, gin.H{
-				"status":     false,
-				"branchId":   req.FromBranchID,
+				"status":     true,
+				"isPresent":  false,
+				"data":       product, // original product from other branch
 				"branchName": branchName,
-				"message":    "SKU not found in the mentioned branch",
+				"message":    "Product exists but not in the given branch",
 			})
 		}
+
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	productModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
+
 )
 
 func CreatePOProduct(db *gorm.DB, product *productModel.POProduct) error {
@@ -129,37 +130,43 @@ func DeletePOProduct(db *gorm.DB, id string) error {
 type ProductWithBranch struct {
 	productModel.PurchaseOrderProduct
 	RefBranchName string `gorm:"column:refBranchName"`
+	IsPresent     bool   `json:"isPresent" gorm:"-"`
 }
 
 func GetProductBySKUInBranch(db *gorm.DB, branchID int, sku string) (ProductWithBranch, bool, string, error) {
-	var result ProductWithBranch
+	var product ProductWithBranch
+	var productOtherBranch ProductWithBranch
 
-	// Query product with branch join
-	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" p`).
-		Select(`p.*, b."refBranchName"`).
-		Joins(`JOIN public."Branches" b ON p."productBranchId" = b."refBranchId"`).
-		Where(`p."productBranchId" = ? AND p."SKU" = ? AND p."isDelete" = false`, branchID, sku).
-		Order(`p.product_instance_id`).
-		Limit(1).
-		Scan(&result).Error
+	err := db.Raw(`
+        SELECT p.*, b."refBranchName"
+        FROM "purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" p
+        JOIN public."Branches" b ON p."productBranchId" = b."refBranchId"
+        WHERE p."productBranchId" = ?
+        AND p."SKU" = ?
+        AND p."isDelete" = false
+        LIMIT 1
+    `, branchID, sku).Scan(&product).Error
 
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			// SKU not found, fetch branch name
-			var branch struct{ RefBranchName string }
-			if bErr := db.Table(`public."Branches"`).
-				Select(`"refBranchName"`).
-				Where(`"refBranchId" = ?`, branchID).
-				First(&branch).Error; bErr != nil {
-				return result, false, "", fmt.Errorf("branch not found")
-			}
-			return result, false, branch.RefBranchName, nil
-		}
-		return result, false, "", err
+	if err == nil && product.SKU != "" {
+		product.IsPresent = true
+		return product, true, product.RefBranchName, nil
 	}
 
-	// Found product, return with branch name
-	return result, true, result.RefBranchName, nil
+	err2 := db.Raw(`
+        SELECT p.*, b."refBranchName"
+        FROM "purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" p
+        JOIN public."Branches" b ON p."productBranchId" = b."refBranchId"
+        WHERE p."SKU" = ?
+        AND p."isDelete" = false
+        LIMIT 1
+    `, sku).Scan(&productOtherBranch).Error
+
+	if err2 != nil || productOtherBranch.SKU == "" {
+		return ProductWithBranch{}, false, "", fmt.Errorf("SKU not found in any branch")
+	}
+
+	productOtherBranch.IsPresent = false
+	return productOtherBranch, false, productOtherBranch.RefBranchName, nil
 }
 
 type Product4Branch struct {

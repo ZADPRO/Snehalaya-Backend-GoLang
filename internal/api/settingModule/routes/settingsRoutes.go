@@ -10,6 +10,8 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route := router.Group("/api/v1/admin/settings")
 	routev2 := router.Group("/api/v2/admin/settings")
 
+	route.POST("/initialCategoryCode", accesstoken.JWTMiddleware(), settingsController.CheckInitialCategoryCodeController())
+
 	// INITIAL ROUTES
 	route.POST("/initialCategories", accesstoken.JWTMiddleware(), settingsController.CreateInitialCategoryController())
 	route.GET("/initialCategories", accesstoken.JWTMiddleware(), settingsController.GetAllInitialCategoryController())
