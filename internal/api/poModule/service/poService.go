@@ -907,23 +907,25 @@ func GetPurchaseOrderFullDetailsService(db *gorm.DB, purchaseOrderNumber string)
 	log := logger.InitLogger()
 	var response poModuleModel.PurchaseOrderDetailsResponse
 
-	// Step 1: Fetch PO ID and Invoice using raw SQL
+	//---------------------------------------------
+	// STEP 1: Get Purchase Order Basic Details
+	//---------------------------------------------
 	var po struct {
 		PurchaseOrderId    int
 		InvoiceFinalNumber string
 	}
 	poQuery := `
-SELECT
-    po."purchase_order_id",
-    po."invoiceFinalNumber"
-FROM
-    "purchaseOrderMgmt"."PurchaseOrders" po
-WHERE
-    po."purchase_order_id" = ?
-ORDER BY
-    po."purchase_order_id" ASC
-LIMIT 1;
-`
+		SELECT
+			po."purchase_order_id",
+			po."invoiceFinalNumber"
+		FROM
+			"purchaseOrderMgmt"."PurchaseOrders" po
+		WHERE
+			po."purchase_order_id" = ?
+		ORDER BY
+			po."purchase_order_id" ASC
+		LIMIT 1;
+	`
 
 	err := db.Raw(poQuery, purchaseOrderNumber).Scan(&po).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) || po.PurchaseOrderId == 0 {
@@ -935,32 +937,6 @@ LIMIT 1;
 
 	response.PurchaseOrderId = po.PurchaseOrderId
 	response.InvoiceFinalNumber = po.InvoiceFinalNumber
-
-	// Step 2: Fetch all accepted products (dialog rows)
-	var acceptedProducts []poModuleModel.Product
-	productQuery := `
-SELECT 
-    ap.po_product_id,
-    ap.line_number,
-    ap.reference_number,
-    ap.product_description,
-    ap.discount,
-    ap.unit_price,
-    ap.discount_price,
-    ap.margin,
-    ap.total_amount,
-    ap.category_id,
-    c."categoryName" AS category_name,
-    ap.sub_category_id,
-    sc."subCategoryName" AS sub_category_name,
-    ap.product_name,
-    ap."SKU"
-FROM "purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" AS ap
-LEFT JOIN public."Categories" AS c ON c."refCategoryid" = ap.category_id
-LEFT JOIN public."SubCategories" AS sc ON sc."refSubCategoryId" = ap.sub_category_id
-WHERE ap.po_product_id = $1
-ORDER BY ap.po_product_id ASC;
-`
 
 	var rows []struct {
 		PoProductId        int
@@ -980,23 +956,58 @@ ORDER BY ap.po_product_id ASC;
 		SKU                string
 	}
 
+	productQuery := `
+		SELECT 
+			ap.po_product_id,
+			ap.line_number,
+			ap.reference_number,
+			ap.product_description,
+			ap.discount,
+			ap.unit_price,
+			ap.discount_price,
+			ap.margin,
+			ap.total_amount,
+			ap.category_id,
+			c."categoryName" AS category_name,
+			ap.sub_category_id,
+			sc."subCategoryName" AS sub_category_name,
+			ap.product_name,
+			ap."SKU"
+		FROM 
+			"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" AS ap
+		LEFT JOIN public."Categories" AS c 
+			ON c."refCategoryid" = ap.category_id
+		LEFT JOIN public."SubCategories" AS sc 
+			ON sc."refSubCategoryId" = ap.sub_category_id
+		WHERE 
+			ap.po_product_id = $1
+		ORDER BY 
+			ap.po_product_id ASC;
+		`
+
 	if err := db.Raw(productQuery, po.PurchaseOrderId).Scan(&rows).Error; err != nil {
 		log.Error("❌ Failed to fetch accepted products: " + err.Error())
 		return response, err
 	}
 
-	// Map rows into Product + DialogRows
-	productMap := map[int]*poModuleModel.Product{}
+	productMap := map[string]*poModuleModel.Product{}
+
 	for _, row := range rows {
-		if _, exists := productMap[row.PoProductId]; !exists {
-			productMap[row.PoProductId] = &poModuleModel.Product{
-				ProductName:   row.ProductName,
-				CategoryId:    row.CategoryId,
-				SubCategoryId: row.SubCategoryId,
-				DialogRows:    []poModuleModel.DialogRow{},
+
+		key := fmt.Sprintf("%d-%d", row.CategoryId, row.SubCategoryId)
+
+		if _, exists := productMap[key]; !exists {
+			productMap[key] = &poModuleModel.Product{
+				ProductName:     row.ProductName,
+				CategoryId:      row.CategoryId,
+				SubCategoryId:   row.SubCategoryId,
+				CategoryName:    row.CategoryName,
+				SubCategoryName: row.SubCategoryName,
+				DialogRows:      []poModuleModel.DialogRow{},
 			}
 		}
-		productMap[row.PoProductId].DialogRows = append(productMap[row.PoProductId].DialogRows, poModuleModel.DialogRow{
+
+		productMap[key].DialogRows = append(productMap[key].DialogRows, poModuleModel.DialogRow{
 			LineNumber:         row.LineNumber,
 			ReferenceNumber:    row.ReferenceNumber,
 			ProductDescription: row.ProductDescription,
@@ -1005,8 +1016,11 @@ ORDER BY ap.po_product_id ASC;
 			DiscountPrice:      row.DiscountPrice,
 			Margin:             row.Margin,
 			TotalAmount:        row.TotalAmount,
+			SKU:                row.SKU,
 		})
 	}
+
+	var acceptedProducts []poModuleModel.Product
 
 	for _, p := range productMap {
 		if len(p.DialogRows) > 0 {

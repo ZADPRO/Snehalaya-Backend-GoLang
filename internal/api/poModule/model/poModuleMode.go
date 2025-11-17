@@ -335,6 +335,7 @@ type ProductRow struct {
 type DialogRow struct {
 	SNo                int     `json:"sNo"`
 	LineNumber         int     `json:"lineNumber"`
+	SKU                string  `json:"SKU"`
 	ReferenceNumber    string  `json:"referenceNumber"`
 	ProductDescription string  `json:"productDescription"`
 	Discount           float64 `json:"discount"`
@@ -350,7 +351,9 @@ type Product struct {
 	ProductName     string      `json:"productName"`
 	Brand           string      `json:"brand"`
 	CategoryId      int         `json:"categoryId"`
+	CategoryName    string      `json:"category_name"`
 	SubCategoryId   int         `json:"subCategoryId"`
+	SubCategoryName string      `json:"sub_category_name"`
 	TaxClass        string      `json:"taxClass"`
 	Quantity        int         `json:"quantity"`
 	Cost            float64     `json:"cost"`
