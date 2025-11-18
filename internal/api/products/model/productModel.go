@@ -143,3 +143,16 @@ type StockTransfer struct {
 func (StockTransfer) TableName() string {
 	return `"purchaseOrderMgmt"."Inventory_StockTransfers"`
 }
+
+type ReceiveStockProductsRequest struct {
+	StockTransferId int `json:"stockTransferId"`
+	AllProducts     []struct {
+		StockTransferItemID int    `json:"stockTransferItemId"`
+		StockTransferID     int    `json:"stockTransferId"`
+		ProductInstanceID   int    `json:"productInstanceId"`
+		ProductName         string `json:"productName"`
+		SKU                 string `json:"sku"`
+		IsReceived          bool   `json:"isReceived"`
+		AcceptanceStatus    string `json:"acceptanceStatus"`
+	} `json:"allProducts"`
+}

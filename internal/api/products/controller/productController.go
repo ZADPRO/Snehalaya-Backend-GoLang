@@ -322,3 +322,24 @@ func GetAllStockTransfersController() gin.HandlerFunc {
 		})
 	}
 }
+
+func ReceiveStockProductsController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var payload productModel.ReceiveStockProductsRequest
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(400, gin.H{"status": false, "message": "Invalid request", "error": err.Error()})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		if err := productService.ReceiveProductsService(dbConn, payload); err != nil {
+			c.JSON(500, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		c.JSON(200, gin.H{"status": true, "message": "Products received successfully"})
+	}
+}

@@ -9,7 +9,6 @@ import (
 	productModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
-
 )
 
 func CreatePOProduct(db *gorm.DB, product *productModel.POProduct) error {
@@ -264,7 +263,7 @@ func CreateStockTransfer(db *gorm.DB, payload productModel.StockTransferRequest)
 			ProductName:       p.ProductName,
 			SKU:               p.SKU,
 			IsReceived:        p.IsReceived,
-			AcceptanceStatus:  p.AcceptanceStatus,
+			AcceptanceStatus:  "In Transit",
 		}
 
 		if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransferItems"`).
@@ -347,4 +346,60 @@ func GetAllStockTransfers(db *gorm.DB) ([]productModel.StockTransfer, error) {
 	}
 
 	return transfers, nil
+}
+
+func ReceiveProductsService(db *gorm.DB, payload productModel.ReceiveStockProductsRequest) error {
+
+	// 1. Fetch Stock Transfer
+	var transfer productModel.StockTransfer
+	if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransfers"`).
+		Where(`stock_transfer_id = ?`, payload.StockTransferId).
+		First(&transfer).Error; err != nil {
+
+		return fmt.Errorf("invalid stock transfer ID: %v", err)
+	}
+
+	toBranchId := transfer.ToBranchID
+	currentTime := time.Now().Format("2006-01-02 15:04:05")
+
+	// 2. Start DB transaction
+	tx := db.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
+	for _, p := range payload.AllProducts {
+
+		// 3. Update Inventory Stock Transfer Item
+		if err := tx.Table(`"purchaseOrderMgmt"."Inventory_StockTransferItems"`).
+			Where(`stock_transfer_item_id = ?`, p.StockTransferItemID).
+			Updates(map[string]interface{}{
+				"is_received":       true,
+				"acceptance_status": "Received",
+			}).Error; err != nil {
+
+			tx.Rollback()
+			return fmt.Errorf("failed to update stock transfer item: %v", err)
+		}
+
+		// 4. Update PurchaseOrderAcceptedProducts based on SKU
+		if err := tx.Table(`"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts"`).
+			Where(`"SKU" = ?`, p.SKU).
+			Updates(map[string]interface{}{
+				"productBranchId": toBranchId,
+				"updatedAt":       currentTime,
+				"updatedBy":       "Admin",
+			}).Error; err != nil {
+
+			tx.Rollback()
+			return fmt.Errorf("failed to update accepted product: %v", err)
+		}
+	}
+
+	// 5. Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }
