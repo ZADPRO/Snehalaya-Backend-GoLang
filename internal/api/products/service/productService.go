@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	bulkImageUploadService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/bulkImageHandling/service"
+	poModuleModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/poModule/model"
 	productModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
@@ -481,4 +483,104 @@ func GetImagesByProductService(db *gorm.DB, productInstanceId string) ([]product
 	log.Infof("📸 %d images retrieved", len(images))
 
 	return images, nil
+}
+
+type SingleProductWithImages struct {
+	poModuleModel.PurchaseOrderAcceptedProductResponse
+	Images []ImageResponse `json:"images"`
+}
+
+type ImageResponse struct {
+	FileName string `json:"fileName"`
+	ViewURL  string `json:"viewUrl"`
+}
+
+func GetSinglePurchaseOrderAcceptedProductService(db *gorm.DB, productInstanceId int) (*SingleProductWithImages, error) {
+	log := logger.InitLogger()
+	log.Infof("🔍 Fetching productInstanceId: %d", productInstanceId)
+
+	// ---------- FETCH MAIN PRODUCT ----------
+	var product poModuleModel.PurchaseOrderAcceptedProductResponse
+
+	query := `
+		SELECT
+			ap.product_instance_id,
+			ap.po_product_id,
+			ap.line_number,
+			ap.reference_number,
+			ap.product_description,
+			ap.discount,
+			ap.unit_price,
+			ap.discount_price,
+			ap.margin,
+			ap.total_amount,
+			ap.category_id,
+			ap.sub_category_id,
+			ap.status,
+			ap."createdAt" AS created_at,
+			ap."createdBy" AS created_by,
+			ap."updatedAt" AS updated_at,
+			ap."updatedBy" AS updated_by,
+			ap."isDelete" AS is_delete,
+			ap.product_name,
+			ap."purchaseOrderId",
+			ap."SKU",
+			ap."productBranchId",
+			ap.quantity,
+			po."invoiceFinalNumber",
+			c."categoryName",
+			sc."subCategoryName",
+			b."refBranchName" AS branch_name
+		FROM "purchaseOrderMgmt"."PurchaseOrderAcceptedProducts" ap
+		LEFT JOIN "purchaseOrderMgmt"."PurchaseOrders" po ON ap."purchaseOrderId" = po.purchase_order_id
+		LEFT JOIN public."Categories" c ON c."refCategoryid" = ap.category_id
+		LEFT JOIN public."SubCategories" sc ON sc."refSubCategoryId" = ap.sub_category_id
+		LEFT JOIN public."Branches" b ON b."refBranchId" = ap."productBranchId"
+		WHERE ap.product_instance_id = ?
+		AND ap."isDelete" = false
+	`
+
+	err := db.Raw(query, productInstanceId).Scan(&product).Error
+	if err != nil || product.ProductInstanceID == 0 {
+		return nil, fmt.Errorf("Product not found")
+	}
+
+	// ---------- FETCH IMAGES ----------
+	var images []struct {
+		FileName string `gorm:"column:file_name"`
+	}
+
+	err = db.Table(`"purchaseOrderMgmt"."ProductImages"`).
+		Select("file_name").
+		Where("product_instance_id = ? AND is_delete = false", productInstanceId).
+		Scan(&images).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed to fetch images")
+	}
+
+	// ---------- GENERATE VIEW URL FOR EACH ----------
+	imageResponses := []ImageResponse{}
+	for _, img := range images {
+
+		// MinIO object name format
+		objectName := "bulk-images/" + img.FileName
+
+		viewURL, err := bulkImageUploadService.GetImageViewURL(objectName, 30)
+		if err != nil {
+			log.Errorf("⚠️ Failed generating view URL for %s", img.FileName)
+			continue
+		}
+
+		imageResponses = append(imageResponses, ImageResponse{
+			FileName: img.FileName,
+			ViewURL:  viewURL,
+		})
+	}
+
+	// Return combined response
+	return &SingleProductWithImages{
+		PurchaseOrderAcceptedProductResponse: product,
+		Images:                               imageResponses,
+	}, nil
 }

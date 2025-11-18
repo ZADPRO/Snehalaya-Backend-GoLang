@@ -4,6 +4,7 @@ import (
 	productController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
+
 )
 
 func ProductManagementRoutes(router *gin.Engine) {
@@ -26,6 +27,8 @@ func ProductManagementRoutes(router *gin.Engine) {
 
 	route.POST("/save", accesstoken.JWTMiddleware(), productController.SaveProductImagesController())
 	route.GET("/byProduct/:productInstanceId", productController.GetImagesByProductController())
+
+	route.GET("/purchaseOrderAcceptedProducts/:id", accesstoken.JWTMiddleware(), productController.GetSinglePurchaseOrderAcceptedProductController())
 
 	// route.GET("/stock-transfer/:id", accesstoken.JWTMiddleware(), productController.GetStockTransferByIDController())
 

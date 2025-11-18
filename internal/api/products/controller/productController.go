@@ -448,3 +448,39 @@ func GetImagesByProductController() gin.HandlerFunc {
 		})
 	}
 }
+
+func GetSinglePurchaseOrderAcceptedProductController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📥 GetSinglePurchaseOrderAcceptedProductController invoked")
+
+		productInstanceIdStr := c.Param("id")
+		productInstanceId, err := strconv.Atoi(productInstanceIdStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid productInstanceId"})
+			return
+		}
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found"})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		result, err := productService.GetSinglePurchaseOrderAcceptedProductService(dbConn, productInstanceId)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": result, "token": token})
+	}
+}
