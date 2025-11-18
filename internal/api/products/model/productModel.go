@@ -52,6 +52,7 @@ type StockTransferRequest struct {
 		SupplierName        string `json:"supplierName"`
 		SupplierCompanyName string `json:"supplierCompanyName"`
 		SupplierGSTNumber   string `json:"supplierGSTNumber"`
+		SupplierCode        string `json:"supplierCode"`
 	} `json:"receivedBranchDetails"`
 
 	BranchDetails struct {
@@ -59,6 +60,7 @@ type StockTransferRequest struct {
 		BranchName    string `json:"branchName"`
 		BranchEmail   string `json:"branchEmail"`
 		BranchAddress string `json:"branchAddress"`
+		BranchCode    string `json:"branchCode"`
 	} `json:"branchDetails"`
 
 	ProductDetails []struct {

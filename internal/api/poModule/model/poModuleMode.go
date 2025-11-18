@@ -243,6 +243,7 @@ type PurchaseOrderListResponse struct {
 	SupplierName          string                       `json:"supplierName"`
 	BranchId              int                          `json:"branchId"`
 	BranchName            string                       `json:"branchName"`
+	InvoiceFinalNumber    string                       `json:"invoice_final_number"`
 	Products              []PurchaseOrderProductLatest `json:"products" gorm:"-"` // ✅ correct
 }
 

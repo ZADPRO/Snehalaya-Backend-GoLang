@@ -2,11 +2,14 @@ package productService
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	productModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
+
 )
 
 func CreatePOProduct(db *gorm.DB, product *productModel.POProduct) error {
@@ -191,6 +194,40 @@ func GetProductsByBranchID(db *gorm.DB, branchID int) ([]Product4Branch, error) 
 
 func CreateStockTransfer(db *gorm.DB, payload productModel.StockTransferRequest) (int, error) {
 
+	branchCode := payload.BranchDetails.BranchCode
+
+	var count int64
+	if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransfers"`).Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("failed to count stock transfers: %v", err)
+	}
+
+	var nextNumber int64 = 10001
+
+	if count > 0 {
+		var lastST string
+		err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransfers"`).
+			Select(`"po_number"`).
+			Where(`"po_number" LIKE 'ST-%'`).
+			Order(`"po_number" DESC`).
+			Limit(1).
+			Scan(&lastST).Error
+
+		if err != nil {
+			return 0, fmt.Errorf("failed to fetch last stock transfer number: %v", err)
+		}
+
+		if lastST != "" {
+			parts := strings.Split(lastST, "-")
+			if len(parts) >= 3 {
+				if num, convErr := strconv.ParseInt(parts[2], 10, 64); convErr == nil {
+					nextNumber = num + 1
+				}
+			}
+		}
+	}
+
+	poNumber := fmt.Sprintf("ST-%s-%05d", branchCode, nextNumber)
+
 	transfer := productModel.StockTransfer{
 		FromBranchID:      payload.BranchDetails.BranchId,
 		FromBranchName:    payload.BranchDetails.BranchName,
@@ -205,7 +242,7 @@ func CreateStockTransfer(db *gorm.DB, payload productModel.StockTransferRequest)
 		DiscountOverall:   payload.TotalSummary.DiscountOverall,
 		TotalAmount:       payload.TotalSummary.TotalAmount,
 		PaymentPending:    payload.TotalSummary.PaymentPending,
-		PoNumber:          payload.TotalSummary.PoNumber,
+		PoNumber:          poNumber,
 		Status:            payload.TotalSummary.Status,
 		CreatedAt:         payload.TotalSummary.CreatedAt,
 		CreatedBy:         payload.TotalSummary.CreatedBy,
@@ -214,24 +251,25 @@ func CreateStockTransfer(db *gorm.DB, payload productModel.StockTransferRequest)
 		IsDelete:          false,
 	}
 
-	// Insert parent
-	if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransfers"`).Create(&transfer).Error; err != nil {
-		return 0, err
+	if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransfers"`).
+		Create(&transfer).Error; err != nil {
+		return 0, fmt.Errorf("failed to insert stock transfer: %v", err)
 	}
 
-	// Insert items
 	for _, p := range payload.ProductDetails {
 
 		item := productModel.StockTransferItem{
 			StockTransferID:   transfer.StockTransferID,
-			ProductInstanceID: 0,             // 	No ID from frontend
-			ProductName:       p.ProductName, // OK
+			ProductInstanceID: 0,
+			ProductName:       p.ProductName,
 			SKU:               p.SKU,
 			IsReceived:        p.IsReceived,
 			AcceptanceStatus:  p.AcceptanceStatus,
 		}
 
-		if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransferItems"`).Create(&item).Error; err != nil {
+		if err := db.Table(`"purchaseOrderMgmt"."Inventory_StockTransferItems"`).
+			Create(&item).Error; err != nil {
+
 			return 0, fmt.Errorf("failed to insert item: %v", err)
 		}
 	}

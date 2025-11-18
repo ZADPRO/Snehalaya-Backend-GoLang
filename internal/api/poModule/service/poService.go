@@ -619,9 +619,12 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 
 	// --- Generate Invoice Number ---
 	var lastInvoice string
+	prefix := fmt.Sprintf("PO-INV-%s", monthYear)
+
 	err = db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).
 		Select(`"invoiceFinalNumber"`).
-		Order("purchase_order_id DESC").
+		Where(`"invoiceFinalNumber" LIKE ?`, prefix+"-%").
+		Order(`"invoiceFinalNumber" DESC`).
 		Limit(1).
 		Scan(&lastInvoice).Error
 
@@ -629,7 +632,8 @@ func SavePurchaseOrderProductsService(db *gorm.DB, payload SavePurchaseOrderProd
 		return fmt.Errorf("failed to fetch last invoice: %v", err)
 	}
 
-	var nextNumber int64 = 10001
+	var nextNumber int64 = 10001 // default
+
 	if lastInvoice != "" {
 		parts := strings.Split(lastInvoice, "-")
 		if len(parts) >= 4 {

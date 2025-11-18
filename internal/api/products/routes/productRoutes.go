@@ -4,7 +4,6 @@ import (
 	productController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
-
 )
 
 func ProductManagementRoutes(router *gin.Engine) {
