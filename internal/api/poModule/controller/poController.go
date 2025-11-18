@@ -16,16 +16,126 @@ func CreatePurchaseOrderController() gin.HandlerFunc {
 	log := logger.InitLogger()
 
 	return func(c *gin.Context) {
-		log.Info("🚀 CreatePurchaseOrderController invoked")
+		log.Info("\n\n🚀 CreatePurchaseOrderController invoked")
 
-		// Token & context validation
+		// Extract context
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
 		branchIdValue, branchIdExists := c.Get("branchId")
 
+		log.Infof("🔍 Context Data: id=%v | roleId=%v | branchId=%v", idValue, roleIdValue, branchIdValue)
+
 		if !idExists || !roleIdExists || !branchIdExists {
 			log.Warn("❌ Missing context data")
-			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found"})
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found",
+			})
+			return
+		}
+
+		// Bind payload
+		var poPayload poModuleModel.PurchaseOrderPayload
+		if err := c.ShouldBindJSON(&poPayload); err != nil {
+			log.Error("❌ Invalid request body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		log.Infof("📦 PO Payload Received: %+v", poPayload)
+
+		// DB connection
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		// Role resolve
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			log.Error("❌ Invalid role ID provided: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+		if err != nil {
+			log.Warn("⚠️ Failed to resolve role name: " + err.Error())
+			roleName = "Unknown"
+		} else {
+			log.Infof("👤 Role Name: %s", roleName)
+		}
+
+		// Service call
+		purchaseOrderNumber, err := poService.CreatePurchaseOrderService(dbConnt, &poPayload, roleName)
+		if err != nil {
+			log.Error("❌ PO Service Error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		// Create token
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Infof("✅ Purchase Order created successfully | PO Number: %s", purchaseOrderNumber)
+		log.Info("=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":              true,
+			"message":             "Purchase Order created successfully",
+			"purchaseOrderNumber": purchaseOrderNumber,
+			"token":               token,
+		})
+	}
+}
+
+func GetAllPurchaseOrdersController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n📥 GetAllPurchaseOrdersController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v | roleId=%v | branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context data")
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Missing token claims"})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		log.Info("📡 Fetching all purchase orders...")
+		data := poService.GetAllPurchaseOrdersService(dbConnt)
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Infof("✅ %d Purchase Orders retrieved\n", len(data))
+
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": data, "token": token})
+	}
+}
+
+func UpdatePurchaseOrderController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n✏️ UpdatePurchaseOrderController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context: id=%v | roleId=%v | branchId=%v",
+			idValue, roleIdValue, branchIdValue,
+		)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing claims in token")
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Missing claims"})
 			return
 		}
 
@@ -36,89 +146,7 @@ func CreatePurchaseOrderController() gin.HandlerFunc {
 			return
 		}
 
-		log.Infof("📦 Payload: %+v", poPayload)
-
-		dbConnt, sqlDB := db.InitDB()
-		defer sqlDB.Close()
-
-		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
-		if err != nil {
-			log.Error("❌ Invalid role ID: " + err.Error())
-			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
-			return
-		}
-
-		roleName, err := roleType.GetRoleTypeNameByID(dbConnt, roleId)
-		if err != nil {
-			roleName = "Unknown"
-			log.Warn("⚠️ Role name could not be resolved")
-		}
-
-		purchaseOrderNumber, err := poService.CreatePurchaseOrderService(dbConnt, &poPayload, roleName)
-		if err != nil {
-			log.Error("❌ Service Error: " + err.Error())
-			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
-			return
-		}
-
-		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
-
-		c.JSON(http.StatusOK, gin.H{
-			"status":              true,
-			"message":             "Purchase Order created successfully",
-			"purchaseOrderNumber": purchaseOrderNumber, // 🧾 send to frontend
-			"token":               token,
-		})
-
-	}
-}
-
-func GetAllPurchaseOrdersController() gin.HandlerFunc {
-	log := logger.InitLogger()
-
-	return func(c *gin.Context) {
-		log.Info("📥 GetAllPurchaseOrdersController invoked")
-
-		idValue, idExists := c.Get("id")
-		roleIdValue, roleIdExists := c.Get("roleId")
-		branchIdValue, branchIdExists := c.Get("branchId")
-
-		if !idExists || !roleIdExists || !branchIdExists {
-			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found"})
-			return
-		}
-
-		dbConnt, sqlDB := db.InitDB()
-		defer sqlDB.Close()
-
-		data := poService.GetAllPurchaseOrdersService(dbConnt)
-
-		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
-
-		c.JSON(http.StatusOK, gin.H{"status": true, "data": data, "token": token})
-	}
-}
-
-func UpdatePurchaseOrderController() gin.HandlerFunc {
-	log := logger.InitLogger()
-
-	return func(c *gin.Context) {
-		log.Info("📥 UpdatePurchaseOrderController invoked")
-
-		idValue, idExists := c.Get("id")
-		roleIdValue, roleIdExists := c.Get("roleId")
-		branchIdValue, branchIdExists := c.Get("branchId")
-
-		if !idExists || !roleIdExists || !branchIdExists {
-			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found"})
-			return
-		}
-
-		var poPayload poModuleModel.PurchaseOrderPayload
-		if err := c.ShouldBindJSON(&poPayload); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
-			return
-		}
+		log.Infof("📦 Update Payload: %+v", poPayload)
 
 		dbConnt, sqlDB := db.InitDB()
 		defer sqlDB.Close()
@@ -127,11 +155,15 @@ func UpdatePurchaseOrderController() gin.HandlerFunc {
 		roleName, _ := roleType.GetRoleTypeNameByID(dbConnt, roleId)
 
 		if err := poService.UpdatePurchaseOrderService(dbConnt, &poPayload, roleName); err != nil {
+			log.Error("❌ Update Service Error: " + err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
 			return
 		}
 
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("✅ Purchase Order updated successfully\n")
+
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Purchase Order updated", "token": token})
 	}
 }
@@ -140,48 +172,40 @@ func GetAllPurchaseOrdersListController() gin.HandlerFunc {
 	log := logger.InitLogger()
 
 	return func(c *gin.Context) {
-		log.Info("📋 GetAllPurchaseOrdersController invoked")
+		log.Info("\n📋 GetAllPurchaseOrdersListController invoked")
 
 		idValue, idExists := c.Get("id")
 		roleIdValue, roleIdExists := c.Get("roleId")
 		branchIdValue, branchIdExists := c.Get("branchId")
 
+		log.Infof("🔍 Claims -> id=%v | roleId=%v | branchId=%v", idValue, roleIdValue, branchIdValue)
+
 		if !idExists || !roleIdExists || !branchIdExists {
 			log.Warn("❌ Missing context data")
-			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User ID, RoleID, Branch ID not found"})
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Missing claims"})
 			return
 		}
 
 		dbConnt, sqlDB := db.InitDB()
 		defer sqlDB.Close()
 
-		// 🔍 Debug database connection info
-		log.Infof("🗄️ Connected to DB: %v", sqlDB.Stats())
-		log.Infof("👤 UserID: %v | RoleID: %v | BranchID: %v", idValue, roleIdValue, branchIdValue)
+		log.Infof("🗄️ DB Stats: %+v", sqlDB.Stats())
 
-		// Call service
 		poList, err := poService.GetAllPurchaseOrdersListService(dbConnt)
 		if err != nil {
 			log.Error("❌ Failed to fetch Purchase Orders: " + err.Error())
-
-			// 🔍 Return full DB error for debugging
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  false,
 				"message": err.Error(),
-				"hint":    "Check if schema 'purchaseOrderMgmt' and table 'PurchaseOrders' exist.",
 			})
 			return
 		}
 
+		log.Infof("✅ %d Purchase Orders fetched", len(poList))
+
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 
-		log.Infof("✅ %d Purchase Orders fetched successfully", len(poList))
-
-		c.JSON(http.StatusOK, gin.H{
-			"status": true,
-			"data":   poList,
-			"token":  token,
-		})
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": poList, "token": token})
 	}
 }
 

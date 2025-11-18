@@ -156,3 +156,18 @@ type ReceiveStockProductsRequest struct {
 		AcceptanceStatus    string `json:"acceptanceStatus"`
 	} `json:"allProducts"`
 }
+type ProductImage struct {
+	ImageID           int     `json:"imageId" gorm:"column:image_id;primaryKey;autoIncrement"`
+	ProductInstanceID *int    `json:"productInstanceId" gorm:"column:product_instance_id"` // NULL allowed
+	FileName          *string `json:"fileName" gorm:"column:file_name"`                    // NULL allowed
+	SkuFound          *string `json:"skuFound" gorm:"column:sku_found"`                    // NULL allowed (character varying)
+	ExtractedSku      *string `json:"extractedSku" gorm:"column:extracted_sku"`            // NULL allowed
+	CreatedAt         *string `json:"createdAt" gorm:"column:created_at"`                  // NULL allowed
+	CreatedBy         *string `json:"createdBy" gorm:"column:created_by"`                  // NULL allowed
+	IsDelete          *bool   `json:"isDelete" gorm:"column:is_delete"`                    // NULL allowed
+}
+
+// Tell GORM the exact table name with schema
+func (ProductImage) TableName() string {
+	return `"purchaseOrderMgmt"."ProductImages"`
+}

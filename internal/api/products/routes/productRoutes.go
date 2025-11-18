@@ -24,6 +24,9 @@ func ProductManagementRoutes(router *gin.Engine) {
 
 	route.PUT("/stock-transfer/receive", accesstoken.JWTMiddleware(), productController.ReceiveStockProductsController())
 
+	route.POST("/save", accesstoken.JWTMiddleware(), productController.SaveProductImagesController())
+	route.GET("/byProduct/:productInstanceId", productController.GetImagesByProductController())
+
 	// route.GET("/stock-transfer/:id", accesstoken.JWTMiddleware(), productController.GetStockTransferByIDController())
 
 }

@@ -2,6 +2,7 @@ package productService
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -402,4 +403,82 @@ func ReceiveProductsService(db *gorm.DB, payload productModel.ReceiveStockProduc
 	}
 
 	return nil
+}
+
+func SaveProductImagesService(db *gorm.DB, fileNames []string, createdBy interface{}) error {
+	log := logger.InitLogger()
+	log.Info("\n🛠️ SaveProductImagesService invoked")
+
+	// Correct SKU extraction
+	skuRegex := regexp.MustCompile(`^([A-Za-z0-9-]*\d)`)
+
+	for _, fileName := range fileNames {
+		log.Infof("📄 Processing file: %s", fileName)
+
+		upper := strings.ToUpper(fileName)
+
+		match := skuRegex.FindStringSubmatch(upper)
+		if len(match) < 2 {
+			log.Warn("⚠️ No valid SKU found in: " + fileName)
+			continue
+		}
+
+		baseSku := match[1] // SS-1125-10487
+		log.Infof("🔍 Extracted Base SKU: %s", baseSku)
+
+		var productInstanceID int
+		err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderAcceptedProducts"`).
+			Select("product_instance_id").
+			Where(`"SKU" = ?`, baseSku).
+			Scan(&productInstanceID).Error
+
+		if err != nil || productInstanceID == 0 {
+			log.Warn("⚠️ No DB match for: " + baseSku)
+		} else {
+			log.Infof("✅ Matched product_instance_id: %d", productInstanceID)
+		}
+
+		// Save DB record
+		record := productModel.ProductImage{
+			FileName:          &fileName,
+			ProductInstanceID: &productInstanceID,
+			SkuFound:          &baseSku,
+			ExtractedSku:      &baseSku,
+			CreatedAt:         func() *string { t := time.Now().Format("2006-01-02 15:04:05"); return &t }(),
+			CreatedBy:         func() *string { v := fmt.Sprintf("%v", createdBy); return &v }(),
+			IsDelete:          func() *bool { b := false; return &b }(),
+		}
+
+		log.Infof("💾 Saving record: %+v", record)
+
+		if err := db.Table(`"purchaseOrderMgmt"."ProductImages"`).Create(&record).Error; err != nil {
+			log.Error("❌ Failed saving image details: " + err.Error())
+			return err
+		}
+	}
+
+	log.Info("🎉 All images processed successfully")
+	return nil
+}
+
+func GetImagesByProductService(db *gorm.DB, productInstanceId string) ([]productModel.ProductImage, error) {
+	log := logger.InitLogger()
+
+	var images []productModel.ProductImage
+
+	log.Infof("🔍 Querying images for productInstanceId=%s", productInstanceId)
+
+	err := db.Table(`"purchaseOrderMgmt"."ProductImages"`).
+		Where(`product_instance_id = ? AND (is_delete = false OR is_delete IS NULL)`, productInstanceId).
+		Order("image_id DESC").
+		Scan(&images).Error
+
+	if err != nil {
+		log.Error("❌ DB Error: " + err.Error())
+		return nil, err
+	}
+
+	log.Infof("📸 %d images retrieved", len(images))
+
+	return images, nil
 }

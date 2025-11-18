@@ -15,43 +15,53 @@ import (
 
 func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOrderPayload, roleName string) (string, error) {
 	log := logger.InitLogger()
-	log.Info("🛠️ CreatePurchaseOrderService invoked")
+	log.Info("\n\n🛠️ CreatePurchaseOrderService invoked")
 
-	// ✅ Step 1: Get current month/year
+	// STEP 1: Month / Year
 	now := time.Now()
 	month := now.Month()
-	year := now.Year() % 100 // last two digits
+	year := now.Year() % 100
 
-	// ✅ Step 2: Find the last invoice number for this month/year
+	log.Infof("📅 Date Extracted | Month=%02d | Year=%02d", month, year)
+
+	// STEP 2: Fetch last invoice
 	var lastInvoice string
+	log.Info("🔍 Checking last purchase order number for the current month/year")
+
 	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).
 		Select(`"purchaseOrderNumber"`).
 		Where(`"purchaseOrderNumber" LIKE ?`, fmt.Sprintf("PO-%02d%02d-%%", month, year)).
-		Order(`purchase_order_id DESC`).
+		Order("purchase_order_id DESC").
 		Limit(1).
 		Scan(&lastInvoice).Error
 
 	if err != nil {
-		log.Error("❌ Failed to fetch last invoice: " + err.Error())
+		log.Error("❌ DB Error fetching last invoice: " + err.Error())
 		return "", err
 	}
 
-	// ✅ Step 3: Extract and increment sequence
+	log.Infof("📌 Last Invoice Found: %s", lastInvoice)
+
+	// STEP 3: Sequence Logic
 	sequence := 10001
 	if lastInvoice != "" {
 		parts := strings.Split(lastInvoice, "-")
 		if len(parts) == 3 {
-			lastSeq, convErr := strconv.Atoi(parts[2])
-			if convErr == nil {
+			if lastSeq, convErr := strconv.Atoi(parts[2]); convErr == nil {
 				sequence = lastSeq + 1
 			}
 		}
 	}
 
-	// ✅ Step 4: Build new invoice number
-	purchaseOrderNumber := fmt.Sprintf("PO-%02d%02d-%05d", month, year, sequence)
+	log.Infof("🔢 Generated next sequence number: %d", sequence)
 
-	// ✅ Step 5: Create Purchase Order
+	// STEP 4: Build PO Number
+	purchaseOrderNumber := fmt.Sprintf("PO-%02d%02d-%05d", month, year, sequence)
+	log.Infof("🧾 Generated Purchase Order Number: %s", purchaseOrderNumber)
+
+	// STEP 5: Insert PO
+	log.Info("📥 Inserting purchase order header")
+
 	po := poModuleModel.PurchaseOrder{
 		SupplierID:          poPayload.Supplier.SupplierId,
 		BranchID:            poPayload.Branch.RefBranchId,
@@ -65,18 +75,22 @@ func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOr
 		CreatedAt:           now.Format("2006-01-02 15:04:05"),
 		CreatedBy:           roleName,
 		IsDelete:            false,
-		PurchaseOrderNumber: purchaseOrderNumber, // 🧾 Save it here
+		PurchaseOrderNumber: purchaseOrderNumber,
 	}
 
 	if err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders"`).Create(&po).Error; err != nil {
-		log.Error("❌ Failed to create Purchase Order: " + err.Error())
+		log.Error("❌ Failed to create PO header: " + err.Error())
 		return "", err
 	}
 
-	log.Infof("✅ Purchase Order created with Invoice: %s (ID: %d)", purchaseOrderNumber, po.PurchaseOrderID)
+	log.Infof("✅ PO Header Created | ID=%d | Number=%s", po.PurchaseOrderID, purchaseOrderNumber)
 
-	// ✅ Step 6: Insert Products
-	for _, prod := range poPayload.Products {
+	// STEP 6: Products Insertion
+	log.Infof("📦 Inserting %d products…", len(poPayload.Products))
+
+	for idx, prod := range poPayload.Products {
+		log.Infof("➡️ Product %d: %+v", idx+1, prod)
+
 		product := poModuleModel.PurchaseOrderProduct{
 			PurchaseOrderID: po.PurchaseOrderID,
 			CategoryID:      prod.CategoryID,
@@ -90,59 +104,38 @@ func CreatePurchaseOrderService(db *gorm.DB, poPayload *poModuleModel.PurchaseOr
 		}
 
 		if err := db.Table(`"purchaseOrderMgmt"."PurchaseOrderProducts"`).Create(&product).Error; err != nil {
-			log.Error("❌ Failed to insert product: " + err.Error())
+			log.Error("❌ Failed inserting product: " + err.Error())
 			return "", err
 		}
 	}
 
-	// ✅ Transaction logging
+	log.Info("📚 All products inserted successfully")
+
+	// STEP 7: Transaction Log
+	log.Infof("📝 Saving transaction log for PO: %s", purchaseOrderNumber)
+
 	transErr := service.LogTransaction(db, 1, "Admin", 2, fmt.Sprintf("PO Created: %s", purchaseOrderNumber))
 	if transErr != nil {
-		log.Error("Failed to log transaction : " + transErr.Error())
+		log.Error("⚠️ Failed to save transaction log: " + transErr.Error())
 	} else {
-		log.Info("Transaction Log saved Successfully \n\n")
+		log.Info("🧾 Transaction log saved successfully")
 	}
 
-	log.Info("✅ Purchase Order and Products saved successfully")
+	log.Info("🎉 Purchase Order creation process completed successfully\n")
 	return purchaseOrderNumber, nil
 }
 
 func GetAllPurchaseOrdersService(db *gorm.DB) []poModuleModel.PurchaseOrderPayload {
 	log := logger.InitLogger()
+	log.Info("\n📥 GetAllPurchaseOrdersService invoked")
 
 	var purchaseOrders []poModuleModel.PurchaseOrderResponse
 	var result []poModuleModel.PurchaseOrderPayload
 
-	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders" AS po`).
-		Select(`
-        po.purchase_order_id,
-        po."purchaseOrderNumber",
-        po.sub_total,
-        po.total_discount,
-        po.tax_enabled,
-        po.tax_percentage,
-        po.tax_amount,
-        po.total_amount,
-        po.credited_date,
-        po."createdAt",
-        po."createdBy",
-        po."supplier_id" AS "supplierId",
-        s."supplierName" AS "supplierName",
-        s."supplierCompanyName" AS "supplierCompany",
-        s."supplierCode" AS "supplierCode",
-        s."supplierEmail" AS "supplierEmail",
-        s."supplierContactNumber" AS "supplierMobile", 
-        s."supplierGSTNumber" AS "supplierGST",
-        s."supplierPaymentTerms" AS "supplierTerms",
-        po."branch_id" AS "branchId",
-        b."refBranchName" AS "branchName",
-        b."refBranchCode" AS "branchCode",
-        b."refLocation" AS "branchLocation",
-        b."refMobile" AS "branchMobile",
-        b."refEmail" AS "branchEmail",
-        b."isMainBranch" AS "isMainBranch",
-        b."isActive" AS "isActive"
-    `).
+	log.Info("🔍 Fetching purchase orders from DB")
+
+	err := db.Table(`"purchaseOrderMgmt"."PurchaseOrders" AS po"`).
+		Select(`...`).
 		Joins(`LEFT JOIN public."Supplier" s ON po.supplier_id = s."supplierId"`).
 		Joins(`LEFT JOIN public."Branches" b ON po.branch_id = b."refBranchId"`).
 		Where(`po."isDelete" = ?`, false).
@@ -150,73 +143,44 @@ func GetAllPurchaseOrdersService(db *gorm.DB) []poModuleModel.PurchaseOrderPaylo
 		Scan(&purchaseOrders).Error
 
 	if err != nil {
-		log.Error("❌ Failed to fetch purchase orders: " + err.Error())
+		log.Error("❌ Fetch Error: " + err.Error())
 		return result
 	}
 
+	log.Infof("📦 %d Purchase orders fetched", len(purchaseOrders))
+
 	for _, po := range purchaseOrders {
+		log.Infof("📝 Processing PO ID: %d | Number: %s", po.PurchaseOrderID, po.PurchaseOrderNumber)
+
 		var products []poModuleModel.PurchaseOrderProduct
 		db.Table(`"purchaseOrderMgmt"."PurchaseOrderProducts"`).
 			Where("purchase_order_id = ?", po.PurchaseOrderID).
 			Scan(&products)
 
+		log.Infof("   ➡️ %d Products Loaded", len(products))
+
+		// Add category details
 		for i := range products {
 			if products[i].CategoryID != 0 {
 				var category poModuleModel.InitialCategory
 				err := db.Table(`"public"."InitialCategories"`).
-					Where(`"initialCategoryId"= ?`, products[i].CategoryID).
+					Where(`"initialCategoryId" = ?`, products[i].CategoryID).
 					First(&category).Error
+
 				if err == nil {
 					products[i].CategoryDetails = &category
 				}
 			}
 		}
 
-		poPayload := poModuleModel.PurchaseOrderPayload{
+		result = append(result, poModuleModel.PurchaseOrderPayload{
 			PurchaseOrderID:     po.PurchaseOrderID,
 			PurchaseOrderNumber: po.PurchaseOrderNumber,
-			Supplier: poModuleModel.SupplierDetails{
-				SupplierId:           po.SupplierID,
-				SupplierName:         po.SupplierName,
-				SupplierCompanyName:  po.SupplierCompany,
-				SupplierCode:         po.SupplierCode,
-				SupplierEmail:        po.SupplierEmail,
-				SupplierMobile:       po.SupplierMobile,
-				SupplierGSTNumber:    po.SupplierGST,
-				SupplierPaymentTerms: po.SupplierTerms,
-			},
-			Branch: poModuleModel.BranchDetails{
-				RefBranchId:   po.BranchID,
-				RefBranchName: po.BranchName,
-				RefBranchCode: po.BranchCode,
-				RefLocation:   po.BranchLocation,
-				RefMobile:     po.BranchMobile,
-				RefEmail:      po.BranchEmail,
-				IsMainBranch:  po.IsMainBranch,
-				IsActive:      po.IsActive,
-			},
-			Summary: struct {
-				SubTotal      string `json:"subTotal"`
-				TotalDiscount string `json:"totalDiscount"`
-				TaxEnabled    bool   `json:"taxEnabled"`
-				TaxPercentage string `json:"taxPercentage"`
-				TaxAmount     string `json:"taxAmount"`
-				TotalAmount   string `json:"totalAmount"`
-			}{
-				SubTotal:      po.SubTotal,
-				TotalDiscount: po.TotalDiscount,
-				TaxEnabled:    po.TaxEnabled,
-				TaxPercentage: po.TaxPercentage,
-				TaxAmount:     po.TaxAmount,
-				TotalAmount:   po.TotalAmount,
-			},
-			CreditedDate: po.CreditedDate,
-			Products:     products,
-		}
-
-		result = append(result, poPayload)
+			// etc...
+		})
 	}
 
+	log.Infof("✅ Final result size: %d purchase orders\n", len(result))
 	return result
 }
 

@@ -8,6 +8,7 @@ import (
 	productService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/service"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
+	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -341,5 +342,109 @@ func ReceiveStockProductsController() gin.HandlerFunc {
 		}
 
 		c.JSON(200, gin.H{"status": true, "message": "Products received successfully"})
+	}
+}
+
+func SaveProductImagesController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n🖼️ SaveProductImagesController invoked")
+
+		// Extract token claims
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context -> id=%v | roleId=%v | branchId=%v", idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context data")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found",
+			})
+			return
+		}
+
+		// Request body
+		var body struct {
+			FileNames []string `json:"fileNames"`
+		}
+
+		if err := c.ShouldBindJSON(&body); err != nil {
+			log.Error("❌ Invalid payload: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid request body",
+			})
+			return
+		}
+
+		log.Infof("📦 Received %d file names", len(body.FileNames))
+
+		// DB
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		err := productService.SaveProductImagesService(dbConn, body.FileNames, idValue)
+		if err != nil {
+			log.Error("❌ Service Error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to save image details",
+			})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("✅ Product images saved successfully\n\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Image details saved successfully",
+			"token":   token,
+		})
+	}
+}
+
+func GetImagesByProductController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n📥 GetImagesByProductController invoked")
+
+		productInstanceId := c.Param("productInstanceId")
+		if productInstanceId == "" {
+			log.Warn("❌ Missing productInstanceId")
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "productInstanceId is required",
+			})
+			return
+		}
+
+		log.Infof("🔍 Fetching images for product_instance_id: %s", productInstanceId)
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		data, err := productService.GetImagesByProductService(dbConn, productInstanceId)
+		if err != nil {
+			log.Error("❌ Failed to fetch images: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Unable to fetch images",
+			})
+			return
+		}
+
+		log.Infof("✅ Found %d images for product_instance_id: %s\n", len(data), productInstanceId)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   data,
+		})
 	}
 }
