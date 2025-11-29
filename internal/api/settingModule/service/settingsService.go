@@ -14,6 +14,7 @@ import (
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"github.com/lib/pq"
 	"gorm.io/gorm"
+
 )
 
 func CheckInitialCategoryCodeService(db *gorm.DB, categoryName string) (string, error) {
@@ -2048,18 +2049,31 @@ func DeleteSettingsProductsService(db *gorm.DB, ids []int, roleName string) erro
 	return nil
 }
 
+func resolveColumnPrefix(table string) string {
+	switch table {
+	case "Patterns":
+		return "Pattern"
+	case "Varient":
+		return "Varient"
+	default:
+		return table
+	}
+}
+
 func CreateMasterService(db *gorm.DB, table string, name string, roleName string) error {
 	log := logger.InitLogger()
 	log.Infof("\n\n🟢 Create %s Service Invoked", table)
 
 	// Duplicate check
 	var exists bool
+	col := resolveColumnPrefix(table)
+
 	dupQuery := fmt.Sprintf(`
 		SELECT EXISTS(
-			SELECT 1 FROM public.%s 
+			SELECT 1 FROM public."%s" 
 			WHERE "isDelete" = FALSE AND LOWER("%sName") = LOWER($1)
 		)
-	`, table, table)
+	`, table, col)
 
 	if err := db.Raw(dupQuery, name).Scan(&exists).Error; err != nil {
 		return err
@@ -2072,9 +2086,9 @@ func CreateMasterService(db *gorm.DB, table string, name string, roleName string
 	now := time.Now().Format("2006-01-02 15:04:05")
 
 	insertQuery := fmt.Sprintf(`
-		INSERT INTO public.%s ("%sName", "createdAt", "createdBy", "isDelete")
+		INSERT INTO public."%s" ("%sName", "createdAt", "createdBy", "isDelete")
 		VALUES ($1, $2, $3, FALSE)
-	`, table, table)
+	`, table, col)
 
 	return db.Exec(insertQuery, name, now, roleName).Error
 }
@@ -2085,7 +2099,7 @@ func GetAllMasterService(db *gorm.DB, table string) []map[string]interface{} {
 
 	var data []map[string]interface{}
 
-	query := fmt.Sprintf(`SELECT * FROM public.%s WHERE "isDelete" = FALSE ORDER BY id ASC`, table)
+	query := fmt.Sprintf(`SELECT * FROM public."%s" WHERE "isDelete" = FALSE ORDER BY id ASC`, table)
 
 	db.Raw(query).Scan(&data)
 
@@ -2097,12 +2111,14 @@ func UpdateMasterService(db *gorm.DB, table string, id int, name string, roleNam
 	log.Infof("\n\n🟡 Update %s Service Invoked", table)
 
 	var exists bool
+	col := resolveColumnPrefix(table)
+
 	dupQuery := fmt.Sprintf(`
 		SELECT EXISTS(
-			SELECT 1 FROM public.%s 
+			SELECT 1 FROM public."%s" 
 			WHERE LOWER("%sName") = LOWER($1) AND id != $2 AND "isDelete" = FALSE
 		)
-	`, table, table)
+	`, table, col)
 
 	if err := db.Raw(dupQuery, name, id).Scan(&exists).Error; err != nil {
 		return err
@@ -2115,10 +2131,10 @@ func UpdateMasterService(db *gorm.DB, table string, id int, name string, roleNam
 	now := time.Now().Format("2006-01-02 15:04:05")
 
 	updateQuery := fmt.Sprintf(`
-		UPDATE public.%s
+		UPDATE public."%s"
 		SET "%sName"=$1, "updatedAt"=$2, "updatedBy"=$3
 		WHERE id=$4
-	`, table, table)
+	`, table, col)
 
 	return db.Exec(updateQuery, name, now, roleName, id).Error
 }
@@ -2130,7 +2146,7 @@ func DeleteMasterService(db *gorm.DB, table string, ids []int, roleName string) 
 	now := time.Now().Format("2006-01-02 15:04:05")
 
 	query := fmt.Sprintf(`
-		UPDATE public.%s
+		UPDATE public."%s"
 		SET "isDelete" = TRUE, "updatedAt"=$1, "updatedBy"=$2
 		WHERE id = ANY($3)
 	`, table)

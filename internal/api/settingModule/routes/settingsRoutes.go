@@ -105,4 +105,16 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route.PUT("/size", accesstoken.JWTMiddleware(), settingsController.UpdateMasterController("size"))
 	route.DELETE("/size", accesstoken.JWTMiddleware(), settingsController.DeleteMasterController("size"))
 
+	// VARIENT
+	route.POST("/varient", accesstoken.JWTMiddleware(), settingsController.CreateMasterController("Varient"))
+	route.GET("/varient", accesstoken.JWTMiddleware(), settingsController.GetAllMasterController("Varient"))
+	route.PUT("/varient", accesstoken.JWTMiddleware(), settingsController.UpdateMasterController("Varient"))
+	route.DELETE("/varient", accesstoken.JWTMiddleware(), settingsController.DeleteMasterController("Varient"))
+
+	// PATTERNS
+	route.POST("/patterns", accesstoken.JWTMiddleware(), settingsController.CreateMasterController("Patterns"))
+	route.GET("/patterns", accesstoken.JWTMiddleware(), settingsController.GetAllMasterController("Patterns"))
+	route.PUT("/patterns", accesstoken.JWTMiddleware(), settingsController.UpdateMasterController("Patterns"))
+	route.DELETE("/patterns", accesstoken.JWTMiddleware(), settingsController.DeleteMasterController("Patterns"))
+
 }
