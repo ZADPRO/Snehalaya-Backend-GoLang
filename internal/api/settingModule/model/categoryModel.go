@@ -331,3 +331,51 @@ type ProductFieldDefinition struct {
 func (ProductFieldDefinition) TableName() string {
 	return `"purchaseOrder".product_field_definitions`
 }
+
+type SettingsProduct struct {
+	Id            int    `json:"id" gorm:"column:id;primaryKey"`
+	CategoryId    int    `json:"categoryId" gorm:"column:categoryId"`
+	SubCategoryId int    `json:"subCategoryId" gorm:"column:subCategoryId"`
+	ProductName   string `json:"productName" gorm:"column:productName"`
+	HsnCode       string `json:"hsn" gorm:"column:hsnCode"`
+	TaxPercentage string `json:"tax" gorm:"column:taxPercentage"`
+	ProductCode   string `json:"productCode" gorm:"column:productCode"`
+	CreatedAt     string `json:"createdAt" gorm:"column:createdAt"`
+	CreatedBy     string `json:"createdBy" gorm:"column:createdBy"`
+	UpdatedAt     string `json:"updatedAt" gorm:"column:updatedAt"`
+	UpdatedBy     string `json:"updatedBy" gorm:"column:updatedBy"`
+	IsDelete      bool   `json:"isDelete" gorm:"column:isDelete"`
+}
+
+// Bind struct to table name
+func (SettingsProduct) TableName() string {
+	return `"SettingsProducts"`
+}
+
+type SettingsProductResponse struct {
+	Id            int    `json:"id" gorm:"column:id"`
+	CategoryId    int    `json:"categoryId" gorm:"column:categoryId"`
+	SubCategoryId int    `json:"subCategoryId" gorm:"column:subCategoryId"`
+	ProductName   string `json:"productName" gorm:"column:productName"`
+	HsnCode       string `json:"hsnCode" gorm:"column:hsnCode"`
+	TaxPercentage string `json:"taxPercentage" gorm:"column:taxPercentage"`
+	ProductCode   string `json:"productCode" gorm:"column:productCode"`
+	CreatedAt     string `json:"createdAt" gorm:"column:createdAt"`
+	CreatedBy     string `json:"createdBy" gorm:"column:createdBy"`
+	UpdatedAt     string `json:"updatedAt" gorm:"column:updatedAt"`
+	UpdatedBy     string `json:"updatedBy" gorm:"column:updatedBy"`
+	IsDelete      bool   `json:"isDelete" gorm:"column:isDelete"`
+
+	// JOIN FIELDS
+	CategoryName    string `json:"categoryName" gorm:"column:categoryName"`
+	SubCategoryName string `json:"subCategoryName" gorm:"column:subCategoryName"`
+}
+
+type MasterPayload struct {
+	Name string `json:"name" binding:"required"`
+}
+
+type MasterUpdatePayload struct {
+	ID   int    `json:"id" binding:"required"`
+	Name string `json:"name" binding:"required"`
+}

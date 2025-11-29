@@ -12,6 +12,7 @@ import (
 	becrypt "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Bcrypt"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
+	"github.com/lib/pq"
 	"gorm.io/gorm"
 )
 
@@ -1852,4 +1853,287 @@ func FetchSettingsOverview(db *gorm.DB) (model.SettingsOverview, error) {
 	}
 
 	return overview, nil
+}
+
+func CreateSettingsProductService(db *gorm.DB, product *model.SettingsProduct, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("\n\n🟢 Create Settings Product Service Invoked")
+	log.Infof("📥 Input Product: %+v", product)
+
+	// Duplicate Check (RAW SQL)
+	log.Info("🔍 Checking duplicate product name...")
+
+	var exists bool
+	dupQuery := `SELECT EXISTS(
+		SELECT 1 FROM public."SettingsProducts"
+		WHERE "productName" = $1 AND "isDelete" = FALSE
+	);`
+
+	if err := db.Raw(dupQuery, product.ProductName).Scan(&exists).Error; err != nil {
+		log.Error("❌ Duplicate check failed: " + err.Error())
+		return err
+	}
+
+	if exists {
+		log.Warn("⚠️ Duplicate Product Found")
+		return fmt.Errorf("duplicate value found")
+	}
+
+	log.Info("✅ No duplicate found, inserting record...")
+
+	// Insert RAW SQL
+	insertQuery := `
+		INSERT INTO public."SettingsProducts"
+		("categoryId", "subCategoryId", "productName", "hsnCode", "taxPercentage", 
+		 "productCode", "createdAt", "createdBy", "isDelete")
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)
+	`
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	err := db.Exec(insertQuery,
+		product.CategoryId,
+		product.SubCategoryId,
+		product.ProductName,
+		product.HsnCode,
+		product.TaxPercentage,
+		product.ProductCode,
+		now,
+		roleName,
+	).Error
+
+	if err != nil {
+		log.Error("❌ Insert failed: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ Product inserted successfully")
+
+	// Log Transaction
+	transactionLogger.LogTransaction(db, 1, "Admin", 2, "Product Created : "+product.ProductName)
+
+	log.Info("\n================================================================\n")
+	return nil
+}
+
+func GetAllSettingsProductsService(db *gorm.DB) []model.SettingsProductResponse {
+	log := logger.InitLogger()
+	log.Info("\n\n🟣 Fetching Settings Products with Category & SubCategory Names...")
+
+	var products []model.SettingsProductResponse
+
+	query := `
+		SELECT 
+			p.id,
+			p."categoryId",
+			p."subCategoryId",
+			p."productName",
+			p."hsnCode",
+			p."taxPercentage",
+			p."productCode",
+			p."createdAt",
+			p."createdBy",
+			p."updatedAt",
+			p."updatedBy",
+			p."isDelete",
+
+			-- Joined fields
+			c."categoryName",
+			sc."subCategoryName"
+
+		FROM public."SettingsProducts" p
+		LEFT JOIN public."Categories" c 
+			ON c."refCategoryid" = p."categoryId"
+		LEFT JOIN public."SubCategories" sc
+			ON sc."refSubCategoryId" = p."subCategoryId"
+
+		WHERE p."isDelete" = FALSE
+		ORDER BY p.id ASC;
+	`
+
+	if err := db.Raw(query).Scan(&products).Error; err != nil {
+		log.Error("❌ Failed to fetch settings products: " + err.Error())
+	}
+
+	log.Infof("📦 %d Products Retrieved", len(products))
+	log.Info("\n================================================================\n")
+
+	return products
+}
+
+func UpdateSettingsProductService(db *gorm.DB, product *model.SettingsProduct, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("\n\n🟡 Update Product Service Invoked")
+
+	// Duplicate check
+	log.Info("🔍 Checking duplicate for update...")
+	var exists bool
+
+	dupQuery := `
+		SELECT EXISTS(
+			SELECT 1 FROM public."SettingsProducts"
+			WHERE "productName" = $1 AND id != $2 AND "isDelete" = FALSE
+		)
+	`
+
+	if err := db.Raw(dupQuery, product.ProductName, product.Id).Scan(&exists).Error; err != nil {
+		log.Error("❌ Duplicate check failed: " + err.Error())
+		return err
+	}
+
+	if exists {
+		log.Warn("⚠️ Duplicate Product Found")
+		return fmt.Errorf("duplicate value found")
+	}
+
+	log.Info("✅ No duplicates, updating record...")
+
+	updateQuery := `
+		UPDATE public."SettingsProducts"
+		SET "categoryId"=$1, "subCategoryId"=$2, "productName"=$3, "hsnCode"=$4,
+			"taxPercentage"=$5, "productCode"=$6, "updatedAt"=$7, "updatedBy"=$8
+		WHERE id=$9
+	`
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	err := db.Exec(updateQuery,
+		product.CategoryId,
+		product.SubCategoryId,
+		product.ProductName,
+		product.HsnCode,
+		product.TaxPercentage,
+		product.ProductCode,
+		now,
+		roleName,
+		product.Id,
+	).Error
+
+	if err != nil {
+		log.Error("❌ Update failed: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ Product updated successfully")
+
+	transactionLogger.LogTransaction(db, 1, "Admin", 3, "Product Updated : "+product.ProductName)
+
+	log.Info("\n================================================================\n")
+	return nil
+}
+
+func DeleteSettingsProductsService(db *gorm.DB, ids []int, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("\n\n🔴 Soft Delete Products Invoked")
+
+	query := `
+        UPDATE public."SettingsProducts"
+        SET "isDelete" = TRUE, "updatedAt"=$1, "updatedBy"=$2
+        WHERE id = ANY($3)
+    `
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	err := db.Exec(query, now, roleName, pq.Array(ids)).Error
+	if err != nil {
+		log.Error("❌ Delete failed: " + err.Error())
+		return err
+	}
+
+	log.Info("✅ Products Soft Deleted Successfully")
+
+	transactionLogger.LogTransaction(db, 1, "Admin", 4, fmt.Sprintf("Products Deleted: %v", ids))
+
+	log.Info("\n================================================================\n")
+	return nil
+}
+
+func CreateMasterService(db *gorm.DB, table string, name string, roleName string) error {
+	log := logger.InitLogger()
+	log.Infof("\n\n🟢 Create %s Service Invoked", table)
+
+	// Duplicate check
+	var exists bool
+	dupQuery := fmt.Sprintf(`
+		SELECT EXISTS(
+			SELECT 1 FROM public.%s 
+			WHERE "isDelete" = FALSE AND LOWER("%sName") = LOWER($1)
+		)
+	`, table, table)
+
+	if err := db.Raw(dupQuery, name).Scan(&exists).Error; err != nil {
+		return err
+	}
+
+	if exists {
+		return fmt.Errorf("duplicate value found")
+	}
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	insertQuery := fmt.Sprintf(`
+		INSERT INTO public.%s ("%sName", "createdAt", "createdBy", "isDelete")
+		VALUES ($1, $2, $3, FALSE)
+	`, table, table)
+
+	return db.Exec(insertQuery, name, now, roleName).Error
+}
+
+func GetAllMasterService(db *gorm.DB, table string) []map[string]interface{} {
+	log := logger.InitLogger()
+	log.Infof("\n\n🟣 GetAll %s Service Invoked", table)
+
+	var data []map[string]interface{}
+
+	query := fmt.Sprintf(`SELECT * FROM public.%s WHERE "isDelete" = FALSE ORDER BY id ASC`, table)
+
+	db.Raw(query).Scan(&data)
+
+	return data
+}
+
+func UpdateMasterService(db *gorm.DB, table string, id int, name string, roleName string) error {
+	log := logger.InitLogger()
+	log.Infof("\n\n🟡 Update %s Service Invoked", table)
+
+	var exists bool
+	dupQuery := fmt.Sprintf(`
+		SELECT EXISTS(
+			SELECT 1 FROM public.%s 
+			WHERE LOWER("%sName") = LOWER($1) AND id != $2 AND "isDelete" = FALSE
+		)
+	`, table, table)
+
+	if err := db.Raw(dupQuery, name, id).Scan(&exists).Error; err != nil {
+		return err
+	}
+
+	if exists {
+		return fmt.Errorf("duplicate value found")
+	}
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	updateQuery := fmt.Sprintf(`
+		UPDATE public.%s
+		SET "%sName"=$1, "updatedAt"=$2, "updatedBy"=$3
+		WHERE id=$4
+	`, table, table)
+
+	return db.Exec(updateQuery, name, now, roleName, id).Error
+}
+
+func DeleteMasterService(db *gorm.DB, table string, ids []int, roleName string) error {
+	log := logger.InitLogger()
+	log.Infof("\n\n🔴 Delete %s Service Invoked", table)
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	query := fmt.Sprintf(`
+		UPDATE public.%s
+		SET "isDelete" = TRUE, "updatedAt"=$1, "updatedBy"=$2
+		WHERE id = ANY($3)
+	`, table)
+
+	return db.Exec(query, now, roleName, pq.Array(ids)).Error
 }

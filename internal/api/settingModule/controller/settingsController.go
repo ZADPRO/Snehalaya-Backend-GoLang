@@ -12,6 +12,7 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
+
 )
 
 type CodeRequest struct {
@@ -2332,6 +2333,384 @@ func GetSettingsOverview() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"status": true,
 			"data":   data,
+		})
+	}
+}
+
+func CreateSettingsProductController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\nCreate Settings Product Controller Invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID not found in request context.",
+			})
+			return
+		}
+
+		var payload model.SettingsProduct
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("Invalid request body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, _ := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+
+		err = settingsService.CreateSettingsProductService(dbConnt, &payload, roleName)
+		if err != nil {
+			log.Error("❌ Service Error: " + err.Error())
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate product found"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to create product"})
+			}
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Product created successfully",
+			"token":   token,
+		})
+	}
+}
+
+func GetAllSettingsProductsController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\nGetAllSettingsProductsController Invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID missing",
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		products := settingsService.GetAllSettingsProductsService(dbConnt)
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   products,
+			"token":  token,
+		})
+	}
+}
+
+func UpdateSettingsProductController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\nUpdate Settings Product Controller Invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User ID, RoleID, Branch ID missing",
+			})
+			return
+		}
+
+		var payload model.SettingsProduct
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("Invalid request body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		roleId, _ := roleType.ExtractIntFromInterface(roleIdValue)
+		roleName, _ := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+
+		err := settingsService.UpdateSettingsProductService(dbConnt, &payload, roleName)
+		if err != nil {
+			log.Error("Service Error: " + err.Error())
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate product"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Update Failed"})
+			}
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Product updated successfully",
+			"token":   token,
+		})
+	}
+}
+
+func DeleteSettingsProductsController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("Delete Settings Products Controller Invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "User context error",
+			})
+			return
+		}
+
+		// FIXED → USE []int
+		var payload struct {
+			IDs []int `json:"ids"`
+		}
+
+		if err := c.ShouldBindJSON(&payload); err != nil || len(payload.IDs) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid or empty IDs",
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		roleId, _ := roleType.ExtractIntFromInterface(roleIdValue)
+		roleName, _ := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+
+		err := settingsService.DeleteSettingsProductsService(dbConnt, payload.IDs, roleName)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to delete products"})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Products deleted successfully",
+			"token":   token,
+		})
+	}
+}
+
+func CreateMasterController(table string) gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+
+		log.Infof("\n\n🟢 Create %s Controller Invoked", table)
+
+		// Validate user from JWT middleware
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User context missing"})
+			return
+		}
+
+		// Payload
+		var payload model.MasterPayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("Invalid body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		// DB
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		// Role name
+		roleId, _ := roleType.ExtractIntFromInterface(roleIdValue)
+		roleName, _ := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+
+		err := settingsService.CreateMasterService(dbConnt, table, payload.Name, roleName)
+		if err != nil {
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate value found"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Insert failed"})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": fmt.Sprintf("%s created successfully", table),
+			"token":   token,
+		})
+	}
+}
+
+// ---------------------- GET ALL ----------------------
+func GetAllMasterController(table string) gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+
+		log.Infof("\n\n🟣 GetAll %s Controller Invoked", table)
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User context missing"})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		data := settingsService.GetAllMasterService(dbConnt, table)
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   data,
+			"token":  token,
+		})
+	}
+}
+
+// ---------------------- UPDATE ----------------------
+func UpdateMasterController(table string) gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+
+		log.Infof("\n\n🟡 Update %s Controller Invoked", table)
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User context missing"})
+			return
+		}
+
+		var payload model.MasterUpdatePayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("Invalid body: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		roleId, _ := roleType.ExtractIntFromInterface(roleIdValue)
+		roleName, _ := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+
+		err := settingsService.UpdateMasterService(dbConnt, table, payload.ID, payload.Name, roleName)
+		if err != nil {
+			if err.Error() == "duplicate value found" {
+				c.JSON(http.StatusConflict, gin.H{"status": false, "message": "Duplicate entry"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Update failed"})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": fmt.Sprintf("%s updated successfully", table),
+			"token":   token,
+		})
+	}
+}
+
+// ---------------------- DELETE ----------------------
+func DeleteMasterController(table string) gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+
+		log.Infof("🔴 Delete %s Controller Invoked", table)
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "User context missing"})
+			return
+		}
+
+		var payload struct {
+			IDs []int `json:"ids"`
+		}
+
+		if err := c.ShouldBindJSON(&payload); err != nil || len(payload.IDs) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid IDs"})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		roleId, _ := roleType.ExtractIntFromInterface(roleIdValue)
+		roleName, _ := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+
+		err := settingsService.DeleteMasterService(dbConnt, table, payload.IDs, roleName)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Delete failed"})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": fmt.Sprintf("%s deleted successfully", table),
+			"token":   token,
 		})
 	}
 }

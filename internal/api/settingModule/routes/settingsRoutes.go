@@ -4,6 +4,7 @@ import (
 	settingsController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/settingModule/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
+
 )
 
 func SettingsAdminRoutes(router *gin.Engine) {
@@ -73,5 +74,35 @@ func SettingsAdminRoutes(router *gin.Engine) {
 
 	// overView
 	route.GET("/overview", accesstoken.JWTMiddleware(), settingsController.GetSettingsOverview())
+
+	// SETTINGS PRODUCTS ROUTES
+	route.POST("/settingsProducts", accesstoken.JWTMiddleware(), settingsController.CreateSettingsProductController())
+	route.GET("/settingsProducts", accesstoken.JWTMiddleware(), settingsController.GetAllSettingsProductsController())
+	route.PUT("/settingsProducts", accesstoken.JWTMiddleware(), settingsController.UpdateSettingsProductController())
+	route.DELETE("/settingsProducts", accesstoken.JWTMiddleware(), settingsController.DeleteSettingsProductsController())
+
+	// DESIGN
+	route.POST("/design", accesstoken.JWTMiddleware(), settingsController.CreateMasterController("design"))
+	route.GET("/design", accesstoken.JWTMiddleware(), settingsController.GetAllMasterController("design"))
+	route.PUT("/design", accesstoken.JWTMiddleware(), settingsController.UpdateMasterController("design"))
+	route.DELETE("/design", accesstoken.JWTMiddleware(), settingsController.DeleteMasterController("design"))
+
+	// COLOR
+	route.POST("/color", accesstoken.JWTMiddleware(), settingsController.CreateMasterController("color"))
+	route.GET("/color", accesstoken.JWTMiddleware(), settingsController.GetAllMasterController("color"))
+	route.PUT("/color", accesstoken.JWTMiddleware(), settingsController.UpdateMasterController("color"))
+	route.DELETE("/color", accesstoken.JWTMiddleware(), settingsController.DeleteMasterController("color"))
+
+	// BRAND
+	route.POST("/brand", accesstoken.JWTMiddleware(), settingsController.CreateMasterController("brand"))
+	route.GET("/brand", accesstoken.JWTMiddleware(), settingsController.GetAllMasterController("brand"))
+	route.PUT("/brand", accesstoken.JWTMiddleware(), settingsController.UpdateMasterController("brand"))
+	route.DELETE("/brand", accesstoken.JWTMiddleware(), settingsController.DeleteMasterController("brand"))
+
+	// SIZE
+	route.POST("/size", accesstoken.JWTMiddleware(), settingsController.CreateMasterController("size"))
+	route.GET("/size", accesstoken.JWTMiddleware(), settingsController.GetAllMasterController("size"))
+	route.PUT("/size", accesstoken.JWTMiddleware(), settingsController.UpdateMasterController("size"))
+	route.DELETE("/size", accesstoken.JWTMiddleware(), settingsController.DeleteMasterController("size"))
 
 }
