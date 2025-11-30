@@ -1,15 +1,16 @@
 package purchaseOrderService
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
+	transactionLogger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/helper/transactions/service"
 	purchaseOrderModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/model"
 	purchaseOrderQuery "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/query"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
-
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, payload *purchaseOrderModel.CreatePORequest, createdBy string) error {
@@ -454,4 +455,256 @@ func CreateProductService(db *gorm.DB, product *purchaseOrderModel.Product) erro
 	}
 
 	return nil
+}
+
+type PurchaseOrderItem struct {
+	CategoryId         int     `json:"categoryId"`
+	SubCategoryId      int     `json:"subCategoryId"`
+	ProductDescription string  `json:"productDescription"`
+	UnitPrice          float64 `json:"unitPrice"`
+	Quantity           float64 `json:"quantity"`
+	DiscountPercent    float64 `json:"discountPercent"`
+	DiscountAmount     float64 `json:"discountAmount"`
+	Total              float64 `json:"total"`
+}
+
+type PurchaseOrderPayload struct {
+	SupplierId  int                 `json:"supplierId"`
+	BranchId    int                 `json:"branchId"`
+	TaxEnabled  bool                `json:"taxEnabled"`
+	TaxRate     float64             `json:"taxRate"`
+	PaymentFee  float64             `json:"paymentFee"`
+	ShippingFee float64             `json:"shippingFee"`
+	Subtotal    float64             `json:"subtotal"`
+	TaxAmount   float64             `json:"taxAmount"`
+	RoundOff    float64             `json:"roundOff"`
+	Total       float64             `json:"total"`
+	Items       []PurchaseOrderItem `json:"items"`
+}
+
+func getYearCode(year int) string {
+	return string('A' + rune(year-2025))
+}
+
+func getMonthCode(month int) string {
+	return string('A' + rune(month-1))
+}
+
+func GeneratePONumber(db *gorm.DB, year int, month int) (string, error) {
+	yearStr := fmt.Sprintf("%d", year)
+	monthStr := fmt.Sprintf("%d", month)
+
+	// Ensure sequence row exists
+	db.Exec(`
+		INSERT INTO "PurchaseOrderManagement"."DocumentSequences" ("docType", year, month)
+		VALUES ('PO', ?, ?)
+		ON CONFLICT ("docType", year, month) DO NOTHING
+	`, yearStr, monthStr)
+
+	// Count rows for sequence
+	var count int
+	db.Raw(`
+		SELECT COUNT(*) FROM "PurchaseOrderManagement"."DocumentSequences"
+		WHERE "docType"='PO' AND year=? AND month=?
+	`, yearStr, monthStr).Scan(&count)
+
+	seq := count + 1
+
+	return fmt.Sprintf("PO%s%s%04d", getYearCode(year), getMonthCode(month), seq), nil
+}
+
+func NewCreatePurchaseOrderService(db *gorm.DB, payload PurchaseOrderPayload, roleName string, createdBy int) (map[string]interface{}, error) {
+	log := logger.InitLogger()
+	log.Info("🛠️ CreatePurchaseOrderService invoked")
+	log.Infof("📥 Payload: %+v", payload)
+	log.Infof("👤 Created By: %s", roleName)
+
+	now := time.Now()
+	year := now.Year()
+	month := int(now.Month())
+
+	poNumber, err := GeneratePONumber(db, year, month)
+	if err != nil {
+		log.Error("❌ Failed to generate PO Number: " + err.Error())
+		return nil, err
+	}
+
+	log.Infof("🧾 Generated PO Number: %s", poNumber)
+
+	createdAt := now.Format("2006-01-02 15:04:05")
+
+	// INSERT PO HEADER
+	var poId int
+	err = db.Raw(`
+		INSERT INTO "PurchaseOrderManagement"."PurchaseOrders"
+		(po_number, "supplierId", branchid, "taxEnabled", "taxRate",
+		 "paymentFee", "shippingFee", "subTotal", "taxAmount", "roundOff", total,
+		 "poYear", "poMonth", status, "createdAt", "createdBy", "isDelete")
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', ?, ?, FALSE)
+		RETURNING id
+	`,
+		poNumber, payload.SupplierId, payload.BranchId,
+		payload.TaxEnabled, fmt.Sprintf("%.2f", payload.TaxRate),
+		fmt.Sprintf("%.2f", payload.PaymentFee),
+		fmt.Sprintf("%.2f", payload.ShippingFee),
+		fmt.Sprintf("%.2f", payload.Subtotal),
+		fmt.Sprintf("%.2f", payload.TaxAmount),
+		fmt.Sprintf("%.2f", payload.RoundOff),
+		fmt.Sprintf("%.2f", payload.Total),
+		fmt.Sprintf("%d", year),
+		fmt.Sprintf("%d", month),
+		createdAt, roleName,
+	).Scan(&poId).Error
+
+	if err != nil {
+		log.Error("❌ Failed inserting PO header: " + err.Error())
+		return nil, err
+	}
+
+	log.Infof("🧾 Purchase Order ID: %d", poId)
+
+	// INSERT ITEMS
+	for _, item := range payload.Items {
+		db.Exec(`
+			INSERT INTO "PurchaseOrderManagement"."PurchaseOrderItems"
+			("purchaseOrderId", "categoryId", "subCategoryId", "productDescription",
+			 "unitPrice", quantity, "discountPercent", "discountAmount", "lineTotal",
+			 "receivedQuantity", "isClosed", "createdAt")
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, FALSE, ?)
+		`,
+			poId,
+			item.CategoryId, item.SubCategoryId, item.ProductDescription,
+			fmt.Sprintf("%.2f", item.UnitPrice),
+			fmt.Sprintf("%.2f", item.Quantity),
+			fmt.Sprintf("%.2f", item.DiscountPercent),
+			fmt.Sprintf("%.2f", item.DiscountAmount),
+			fmt.Sprintf("%.2f", item.Total),
+			createdAt,
+		)
+	}
+
+	// INSERT AUDIT
+	jsonData, _ := json.Marshal(payload)
+
+	db.Exec(`
+		INSERT INTO "PurchaseOrderManagement"."PurchaseOrderAudit"
+		("purchaseOrderId", "actionType", "actionDetails", "createdAt", "createdBy")
+		VALUES (?, 'CREATE', ?, ?, ?)
+	`,
+		poId, string(jsonData), createdAt, roleName,
+	)
+
+	log.Info("📘 Logged Audit trail")
+
+	// LOG TRANSACTION
+	transErr := transactionLogger.LogTransaction(
+		db, 1, roleName, 2,
+		"Purchase Order Created: "+poNumber,
+	)
+	if transErr != nil {
+		log.Error("⚠️ Transaction Log Failed: " + transErr.Error())
+	}
+
+	return map[string]interface{}{
+		"poId":     poId,
+		"poNumber": poNumber,
+	}, nil
+}
+
+func NewGetAllPurchaseOrdersService(db *gorm.DB) []map[string]interface{} {
+	log := logger.InitLogger()
+	log.Info("🛠️ GetAllPurchaseOrdersService invoked")
+
+	var list []map[string]interface{}
+
+	db.Raw(`
+		SELECT
+			po.id,
+			po.po_number,
+			po."supplierId",
+			s."supplierName",
+			s."creditedDays",
+			po.branchid,
+			b."refBranchId",
+			b."refBranchCode",
+			
+			po."taxEnabled",
+			po."taxRate",
+			po."taxAmount",
+			po."subTotal",
+			po.total,
+			po.status,
+			po."createdAt",
+			po."createdBy",
+
+			-- AGGREGATED VALUES HERE
+			SUM(COALESCE(poi.quantity::numeric, 0)) AS totalOrderedQty,
+			SUM(COALESCE(poi."receivedQuantity"::numeric, 0)) AS totalReceivedQty,
+			BOOL_AND(COALESCE(poi."isClosed", false)) AS isFullyClosed
+
+		FROM
+			"PurchaseOrderManagement"."PurchaseOrders" po
+		JOIN public."Branches" b 
+			ON b."refBranchId" = po.branchid
+		JOIN public."Supplier" s 
+			ON s."supplierId" = po."supplierId"
+		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderItems" poi 
+			ON poi."purchaseOrderId" = po.id
+
+		WHERE
+			po."isDelete" = 'false'
+
+		GROUP BY
+			po.id,
+			po.po_number,
+			po."supplierId",
+			s."supplierName",
+			s."creditedDays",
+			po.branchid,
+			b."refBranchId",
+			b."refBranchCode",
+			po."taxEnabled",
+			po."taxRate",
+			po."taxAmount",
+			po."subTotal",
+			po.total,
+			po.status,
+			po."createdAt",
+			po."createdBy"
+
+		ORDER BY
+			po.id DESC;
+
+	`).Scan(&list)
+
+	log.Infof("📊 Retrieved %d purchase orders", len(list))
+
+	return list
+}
+
+func NewGetSinglePurchaseOrderService(db *gorm.DB, poId int) (map[string]interface{}, error) {
+	log := logger.InitLogger()
+	log.Infof("🛠️ Fetching PO ID: %d", poId)
+
+	var header map[string]interface{}
+	db.Raw(`
+		SELECT * FROM "PurchaseOrderManagement"."PurchaseOrders"
+		WHERE id = ? AND "isDelete" = FALSE
+	`, poId).Scan(&header)
+
+	if header["id"] == nil {
+		return nil, fmt.Errorf("PO not found")
+	}
+
+	var items []map[string]interface{}
+	db.Raw(`
+		SELECT * FROM "PurchaseOrderManagement"."PurchaseOrderItems"
+		WHERE "purchaseOrderId" = ?
+	`, poId).Scan(&items)
+
+	header["items"] = items
+
+	log.Info("✅ PO fetched successfully")
+
+	return header, nil
 }

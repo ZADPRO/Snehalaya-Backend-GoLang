@@ -2,11 +2,13 @@ package purchaseOrderController
 
 import (
 	"net/http"
+	"strconv"
 
 	purchaseOrderModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/model"
 	purchaseOrderService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/service"
 	"github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/db"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
+	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
 )
@@ -345,5 +347,124 @@ func CreateProductController() gin.HandlerFunc {
 
 		log.Info("Product created successfully")
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Product created", "token": token})
+	}
+}
+func NewCreatePurchaseOrderController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n\n🚀 Create Purchase Order Controller invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		log.Infof("🔍 Context Data: id=%v, roleId=%v, branchId=%v",
+			idValue, roleIdValue, branchIdValue)
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context data")
+			c.JSON(http.StatusUnauthorized,
+				gin.H{"status": false, "message": "Missing user context"})
+			return
+		}
+
+		var payload purchaseOrderService.PurchaseOrderPayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("📦 Invalid request body: " + err.Error())
+			c.JSON(http.StatusBadRequest,
+				gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		log.Infof("📦 PO Payload: %+v", payload)
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		roleId, err := roleType.ExtractIntFromInterface(roleIdValue)
+		if err != nil {
+			c.JSON(http.StatusBadRequest,
+				gin.H{"status": false, "message": "Invalid role ID"})
+			return
+		}
+
+		roleName, _ := roleType.GetRoleTypeNameByID(dbConn, roleId)
+		log.Infof("👤 Role Name: %s", roleName)
+
+		createdByFloat, _ := idValue.(float64)
+		createdBy := int(createdByFloat)
+
+		result, err := purchaseOrderService.NewCreatePurchaseOrderService(
+			dbConn, payload, roleName, createdBy,
+		)
+
+		if err != nil {
+			log.Error("❌ Service Error: " + err.Error())
+			c.JSON(http.StatusInternalServerError,
+				gin.H{"status": false, "message": "Failed to create PO"})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("✅ Purchase Order created successfully\n\n")
+		log.Info("\n=================================================================\n")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Purchase Order created successfully",
+			"data":    result,
+			"token":   token,
+		})
+	}
+}
+
+func NewGetAllPurchaseOrdersController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n📥 GetAllPurchaseOrdersController invoked")
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		log.Info("📦 Fetching all purchase orders")
+		poList := purchaseOrderService.NewGetAllPurchaseOrdersService(dbConn)
+
+		log.Infof("📊 Purchase Orders fetched: %d", len(poList))
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   poList,
+		})
+	}
+}
+
+func NewGetSinglePurchaseOrderController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n📥 GetSinglePurchaseOrderController invoked")
+
+		idStr := c.Param("id")
+		id, _ := strconv.Atoi(idStr)
+
+		log.Infof("🔍 Fetching PO ID: %d", id)
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		result, err := purchaseOrderService.NewGetSinglePurchaseOrderService(dbConn, id)
+		if err != nil {
+			log.Error("❌ " + err.Error())
+			c.JSON(http.StatusNotFound,
+				gin.H{"status": false, "message": "PO not found"})
+			return
+		}
+
+		log.Info("✅ PO fetched successfully")
+
+		c.JSON(http.StatusOK, gin.H{"status": true, "data": result})
 	}
 }
