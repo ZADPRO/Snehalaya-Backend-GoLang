@@ -11,6 +11,7 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
+
 )
 
 // CREATE PURCHASE ORDER
@@ -466,5 +467,73 @@ func NewGetSinglePurchaseOrderController() gin.HandlerFunc {
 		log.Info("✅ PO fetched successfully")
 
 		c.JSON(http.StatusOK, gin.H{"status": true, "data": result})
+	}
+}
+
+func NewCreateGRNController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📦 Create GRN Controller invoked")
+
+		var payload purchaseOrderService.GRNPayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("❌ Invalid GRN Payload: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		result, err := purchaseOrderService.NewCreateGRNService(dbConn, payload)
+		if err != nil {
+			log.Error("❌ " + err.Error())
+			c.JSON(http.StatusInternalServerError,
+				gin.H{"status": false, "message": "Failed to create GRN"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "GRN created successfully",
+			"data":    result,
+		})
+	}
+}
+
+func NewGetAllGRNController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		data := purchaseOrderService.NewGetAllGRNService(dbConn)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   data,
+		})
+	}
+}
+
+func NewGetSingleGRNController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		idStr := c.Param("id")
+		id, _ := strconv.Atoi(idStr)
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		data, err := purchaseOrderService.NewGetSingleGRNService(dbConn, id)
+		if err != nil {
+			c.JSON(http.StatusNotFound,
+				gin.H{"status": false, "message": "GRN not found"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   data,
+		})
 	}
 }

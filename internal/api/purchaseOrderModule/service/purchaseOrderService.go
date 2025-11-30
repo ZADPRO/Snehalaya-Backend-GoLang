@@ -482,35 +482,56 @@ type PurchaseOrderPayload struct {
 	Items       []PurchaseOrderItem `json:"items"`
 }
 
-func getYearCode(year int) string {
-	return string('A' + rune(year-2025))
-}
-
-func getMonthCode(month int) string {
-	return string('A' + rune(month-1))
-}
-
 func GeneratePONumber(db *gorm.DB, year int, month int) (string, error) {
-	yearStr := fmt.Sprintf("%d", year)
-	monthStr := fmt.Sprintf("%d", month)
+	log := logger.InitLogger()
+	log.Info("🧮 Generating new PO Number...")
 
-	// Ensure sequence row exists
-	db.Exec(`
-		INSERT INTO "PurchaseOrderManagement"."DocumentSequences" ("docType", year, month)
-		VALUES ('PO', ?, ?)
-		ON CONFLICT ("docType", year, month) DO NOTHING
-	`, yearStr, monthStr)
+	// A = 2025, B = 2026, C = 2027 ...
+	yearCode := string(rune('A' + (year - 2025)))
 
-	// Count rows for sequence
-	var count int
-	db.Raw(`
-		SELECT COUNT(*) FROM "PurchaseOrderManagement"."DocumentSequences"
-		WHERE "docType"='PO' AND year=? AND month=?
-	`, yearStr, monthStr).Scan(&count)
+	// A = Jan, B = Feb ... K = Nov, L = Dec
+	monthCode := string(rune('A' + (month - 1)))
 
-	seq := count + 1
+	prefix := fmt.Sprintf("PO%s%s", yearCode, monthCode)
 
-	return fmt.Sprintf("PO%s%s%04d", getYearCode(year), getMonthCode(month), seq), nil
+	log.Infof("🔍 PO Prefix = %s", prefix)
+
+	// ==== FETCH LATEST PO NUMBER WITH THIS PREFIX ====
+	var lastPONumber string
+
+	err := db.
+		Raw(`
+            SELECT po_number 
+            FROM "PurchaseOrderManagement"."PurchaseOrders"
+            WHERE po_number LIKE ?
+            ORDER BY id DESC 
+            LIMIT 1
+        `, prefix+"%").
+		Scan(&lastPONumber).Error
+
+	if err != nil {
+		log.Error("❌ Failed reading last PO number: " + err.Error())
+		return "", err
+	}
+
+	log.Infof("📌 Last PO Number from DB = %s", lastPONumber)
+
+	// ==== EXTRACT LAST 4 DIGITS ====
+	seq := 0
+	if lastPONumber != "" && len(lastPONumber) >= len(prefix)+4 {
+		lastSeqStr := lastPONumber[len(lastPONumber)-4:]
+		lastSeq, _ := strconv.Atoi(lastSeqStr)
+		seq = lastSeq
+	}
+
+	// ==== INCREMENT ====
+	seq++
+
+	// Final PO number
+	newPONumber := fmt.Sprintf("%s%04d", prefix, seq)
+
+	log.Infof("🎉 New PO Number Generated = %s", newPONumber)
+	return newPONumber, nil
 }
 
 func NewCreatePurchaseOrderService(db *gorm.DB, payload PurchaseOrderPayload, roleName string, createdBy int) (map[string]interface{}, error) {
@@ -706,5 +727,195 @@ func NewGetSinglePurchaseOrderService(db *gorm.DB, poId int) (map[string]interfa
 
 	log.Info("✅ PO fetched successfully")
 
+	return header, nil
+}
+
+type GRNItem struct {
+	SNo           int     `json:"sNo"`
+	LineNo        string  `json:"lineNo"`
+	RefNo         string  `json:"refNo"`
+	Cost          float64 `json:"cost"`
+	ProfitPercent float64 `json:"profitPercent"`
+	Total         float64 `json:"total"`
+
+	Design struct {
+		Id   any    `json:"id"` // can be int or string
+		Name string `json:"name"`
+	} `json:"design"`
+
+	Pattern struct {
+		Id   any    `json:"id"`
+		Name string `json:"name"`
+	} `json:"pattern"`
+
+	Variant struct {
+		Id   any    `json:"id"`
+		Name string `json:"name"`
+	} `json:"variant"`
+
+	Color struct {
+		Id   any    `json:"id"`
+		Name string `json:"name"`
+	} `json:"color"`
+
+	Size struct {
+		Id   any    `json:"id"`
+		Name string `json:"name"`
+	} `json:"size"`
+
+	ProductId   int    `json:"productId"`
+	ProductName string `json:"productName"`
+}
+
+type GRNPayload struct {
+	PoId       int       `json:"poId"`
+	SupplierId int       `json:"supplierId"`
+	BranchId   int       `json:"branchId"`
+	Items      []GRNItem `json:"items"`
+}
+
+func toString(v any) string {
+	if v == nil {
+		return ""
+	}
+	return fmt.Sprintf("%v", v)
+}
+
+func NewCreateGRNService(db *gorm.DB, payload GRNPayload) (map[string]interface{}, error) {
+	log := logger.InitLogger()
+	log.Info("🛠️ NewCreateGRNService invoked")
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	// INSERT GRN HEADER
+	var grnId int
+	err := db.Raw(`
+			INSERT INTO "PurchaseOrderManagement"."PurchaseOrderGRN"
+			("purchaseOrderId", "supplierId", "supplierName", branchid,
+			"branchCode", "poNumber", "grnDate", "totalReceivedQty", "createdAt")
+			SELECT 
+				po.id, 
+				po."supplierId",
+				s."supplierName",
+				po.branchid,
+				b."refBranchCode",
+				po.po_number,
+				?, ?, ?
+			FROM "PurchaseOrderManagement"."PurchaseOrders" po
+			JOIN public."Supplier" s ON s."supplierId" = po."supplierId"
+			JOIN public."Branches" b ON b."refBranchId" = po.branchid
+			WHERE po.id = ?
+			RETURNING id
+		`,
+		now,                                   // grnDate
+		fmt.Sprintf("%d", len(payload.Items)), // totalReceivedQty
+		now,                                   // createdAt
+		payload.PoId,
+	).Scan(&grnId).Error
+
+	if err != nil {
+		log.Error("❌ Failed inserting GRN header: " + err.Error())
+		return nil, err
+	}
+
+	log.Infof("🆔 GRN Created with ID = %d", grnId)
+
+	// INSERT GRN ITEMS
+	for _, item := range payload.Items {
+		err := db.Exec(`
+        INSERT INTO "PurchaseOrderManagement"."PurchaseOrderGRNItems"
+        ("grnId", "purchaseOrderId", "supplierId", "lineNo", "refNo",
+         "productId", "productName",
+         "designId", "designName", "patternId", "patternName",
+         "varientId", "varientName", "colorId", "colorName",
+         "sizeId", "sizeName",
+         cost, "profitPercent", total, "createdAt",
+         "productBranchId", "isDelete")
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+			grnId,
+			payload.PoId,
+			payload.SupplierId,
+
+			item.LineNo,
+			item.RefNo,
+
+			item.ProductId,
+			item.ProductName,
+
+			toString(item.Design.Id),
+			item.Design.Name,
+
+			toString(item.Pattern.Id),
+			item.Pattern.Name,
+
+			toString(item.Variant.Id),
+			item.Variant.Name,
+
+			toString(item.Color.Id),
+			item.Color.Name,
+
+			toString(item.Size.Id),
+			item.Size.Name,
+
+			toString(item.Cost),
+			toString(item.ProfitPercent),
+			toString(item.Total),
+
+			now,
+
+			payload.BranchId, // ✅ INTEGER (no cast required)
+			false,            // ✅ BOOLEAN
+		).Error
+
+		if err != nil {
+			log.Error("❌ Failed inserting GRN item: " + err.Error())
+			return nil, err
+		}
+	}
+
+	// UPDATE PO → Increase received qty
+	db.Exec(`
+		UPDATE "PurchaseOrderManagement"."PurchaseOrderItems"
+		SET "receivedQuantity" = COALESCE("receivedQuantity"::numeric, 0) + 1
+		WHERE "purchaseOrderId" = ?
+	`, payload.PoId)
+
+	return map[string]interface{}{
+		"grnId": grnId,
+	}, nil
+}
+
+func NewGetAllGRNService(db *gorm.DB) []map[string]interface{} {
+	var list []map[string]interface{}
+	db.Raw(`
+		SELECT grn.*, po.po_number
+		FROM "PurchaseOrderManagement"."PurchaseOrderGRN" grn
+		JOIN "PurchaseOrderManagement"."PurchaseOrders" po
+			ON po.id = grn."purchaseOrderId"
+		ORDER BY grn.id DESC
+	`).Scan(&list)
+
+	return list
+}
+
+func NewGetSingleGRNService(db *gorm.DB, grnId int) (map[string]interface{}, error) {
+	var header map[string]interface{}
+	db.Raw(`
+		SELECT * FROM "PurchaseOrderManagement"."PurchaseOrderGRN"
+		WHERE id = ?
+	`, grnId).Scan(&header)
+
+	if header["id"] == nil {
+		return nil, fmt.Errorf("GRN not found")
+	}
+
+	var items []map[string]interface{}
+	db.Raw(`
+		SELECT * FROM "PurchaseOrderManagement"."PurchaseOrderGRNItems"
+		WHERE "grnId" = ?
+	`, grnId).Scan(&items)
+
+	header["items"] = items
 	return header, nil
 }
