@@ -648,7 +648,7 @@ func NewGetAllPurchaseOrdersService(db *gorm.DB) []map[string]interface{} {
 			po.branchid,
 			b."refBranchId",
 			b."refBranchCode",
-			
+
 			po."taxEnabled",
 			po."taxRate",
 			po."taxAmount",
@@ -658,22 +658,44 @@ func NewGetAllPurchaseOrdersService(db *gorm.DB) []map[string]interface{} {
 			po."createdAt",
 			po."createdBy",
 
-			-- AGGREGATED VALUES HERE
+			-- Ordered Quantity From PO Items
 			SUM(COALESCE(poi.quantity::numeric, 0)) AS totalOrderedQty,
-			SUM(COALESCE(poi."receivedQuantity"::numeric, 0)) AS totalReceivedQty,
-			BOOL_AND(COALESCE(poi."isClosed", false)) AS isFullyClosed
 
-		FROM
-			"PurchaseOrderManagement"."PurchaseOrders" po
+			-- Received Quantity From GRN (corrected)
+			COALESCE(grni.total_received, 0) AS totalReceivedQty,
+
+			-- Fully Closed?
+			CASE 
+				WHEN SUM(COALESCE(poi.quantity::numeric, 0)) 
+					= COALESCE(grni.total_received, 0)
+				THEN TRUE 
+				ELSE FALSE 
+			END AS isFullyClosed
+
+		FROM "PurchaseOrderManagement"."PurchaseOrders" po
+
 		JOIN public."Branches" b 
 			ON b."refBranchId" = po.branchid
+
 		JOIN public."Supplier" s 
 			ON s."supplierId" = po."supplierId"
-		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderItems" poi 
+
+		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderItems" poi
 			ON poi."purchaseOrderId" = po.id
 
-		WHERE
-			po."isDelete" = 'false'
+		-- Correct GRN Aggregation
+		LEFT JOIN (
+			SELECT 
+				g."purchaseOrderId",
+				COUNT(*) AS total_received
+			FROM "PurchaseOrderManagement"."PurchaseOrderGRN" g
+			JOIN "PurchaseOrderManagement"."PurchaseOrderGRNItems" gi
+				ON gi."grnId" = g.id
+			WHERE gi."isDelete" = FALSE
+			GROUP BY g."purchaseOrderId"
+		) grni ON grni."purchaseOrderId" = po.id
+
+		WHERE po."isDelete" = 'false'
 
 		GROUP BY
 			po.id,
@@ -691,10 +713,11 @@ func NewGetAllPurchaseOrdersService(db *gorm.DB) []map[string]interface{} {
 			po.total,
 			po.status,
 			po."createdAt",
-			po."createdBy"
+			po."createdBy",
+			grni.total_received     -- IMPORTANT new addition
 
-		ORDER BY
-			po.id DESC;
+		ORDER BY po.id DESC;
+
 
 	`).Scan(&list)
 
@@ -774,11 +797,76 @@ type GRNPayload struct {
 	Items      []GRNItem `json:"items"`
 }
 
+func SafeInt(v any) *int {
+	if v == nil {
+		return nil
+	}
+
+	switch val := v.(type) {
+	case int:
+		return &val
+	case float64:
+		i := int(val)
+		return &i
+	case string:
+		if val == "" {
+			return nil
+		}
+		i, err := strconv.Atoi(val)
+		if err != nil {
+			return nil
+		}
+		return &i
+	default:
+		return nil
+	}
+}
+
 func toString(v any) string {
 	if v == nil {
 		return ""
 	}
 	return fmt.Sprintf("%v", v)
+}
+
+func GenerateSKU(db *gorm.DB, year int, month int) (string, error) {
+	log := logger.InitLogger()
+	log.Info("🔧 Generating SKU...")
+
+	yearCode := string(rune('A' + (year - 2025))) // 2025=A
+	monthCode := string(rune('A' + (month - 1)))  // Jan=A
+
+	prefix := fmt.Sprintf("SS%s%s", yearCode, monthCode)
+
+	log.Infof("🔍 SKU Prefix = %s", prefix)
+
+	var lastSKU string
+	err := db.Raw(`
+        SELECT sku
+        FROM "PurchaseOrderManagement"."PurchaseOrderGRNItems"
+        WHERE sku LIKE ?
+        ORDER BY id DESC
+        LIMIT 1
+    `, prefix+"%").Scan(&lastSKU).Error
+
+	if err != nil {
+		log.Error("❌ Failed reading last SKU: " + err.Error())
+		return "", err
+	}
+
+	seq := 0
+	if lastSKU != "" && len(lastSKU) >= len(prefix)+5 {
+		lastSeqStr := lastSKU[len(lastSKU)-5:]
+		lastSeq, _ := strconv.Atoi(lastSeqStr)
+		seq = lastSeq
+	}
+
+	seq++
+
+	newSKU := fmt.Sprintf("%s%05d", prefix, seq)
+
+	log.Infof("🎉 Generated SKU = %s", newSKU)
+	return newSKU, nil
 }
 
 func NewCreateGRNService(db *gorm.DB, payload GRNPayload) (map[string]interface{}, error) {
@@ -790,23 +878,25 @@ func NewCreateGRNService(db *gorm.DB, payload GRNPayload) (map[string]interface{
 	// INSERT GRN HEADER
 	var grnId int
 	err := db.Raw(`
-			INSERT INTO "PurchaseOrderManagement"."PurchaseOrderGRN"
-			("purchaseOrderId", "supplierId", "supplierName", branchid,
-			"branchCode", "poNumber", "grnDate", "totalReceivedQty", "createdAt")
-			SELECT 
-				po.id, 
-				po."supplierId",
-				s."supplierName",
-				po.branchid,
-				b."refBranchCode",
-				po.po_number,
-				?, ?, ?
-			FROM "PurchaseOrderManagement"."PurchaseOrders" po
-			JOIN public."Supplier" s ON s."supplierId" = po."supplierId"
-			JOIN public."Branches" b ON b."refBranchId" = po.branchid
-			WHERE po.id = ?
-			RETURNING id
-		`,
+		INSERT INTO "PurchaseOrderManagement"."PurchaseOrderGRN"
+		(
+			"purchaseOrderId", "supplierId", "supplierName", branchid,
+			"branchCode", "poNumber", "grnDate", "totalReceivedQty", "createdAt"
+		)
+		SELECT 
+			po.id, 
+			po."supplierId",
+			s."supplierName",
+			po.branchid,
+			b."refBranchCode",
+			po.po_number,
+			?, ?, ?
+		FROM "PurchaseOrderManagement"."PurchaseOrders" po
+		JOIN public."Supplier" s ON s."supplierId" = po."supplierId"
+		JOIN public."Branches" b ON b."refBranchId" = po.branchid
+		WHERE po.id = ?
+		RETURNING id
+	`,
 		now,                                   // grnDate
 		fmt.Sprintf("%d", len(payload.Items)), // totalReceivedQty
 		now,                                   // createdAt
@@ -822,17 +912,33 @@ func NewCreateGRNService(db *gorm.DB, payload GRNPayload) (map[string]interface{
 
 	// INSERT GRN ITEMS
 	for _, item := range payload.Items {
-		err := db.Exec(`
-        INSERT INTO "PurchaseOrderManagement"."PurchaseOrderGRNItems"
-        ("grnId", "purchaseOrderId", "supplierId", "lineNo", "refNo",
-         "productId", "productName",
-         "designId", "designName", "patternId", "patternName",
-         "varientId", "varientName", "colorId", "colorName",
-         "sizeId", "sizeName",
-         cost, "profitPercent", total, "createdAt",
-         "productBranchId", "isDelete")
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
+
+		// 👉 Generate SKU per item
+		sku, err := GenerateSKU(db, time.Now().Year(), int(time.Now().Month()))
+		if err != nil {
+			return nil, err
+		}
+
+		err = db.Exec(`
+    INSERT INTO "PurchaseOrderManagement"."PurchaseOrderGRNItems"
+    (
+        "grnId", "purchaseOrderId", "supplierId",
+        "lineNo", "refNo",
+        "productId", "productName",
+        "designId", "designName",
+        "patternId", "patternName",
+        "varientId", "varientName",
+        "colorId", "colorName",
+        "sizeId", "sizeName",
+        cost, "profitPercent", total,
+        "createdAt", "createdBy",
+        "updatedAt", "updatedBy",
+        "productBranchId", "isDelete",
+        quantity,
+        sku
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`,
 			grnId,
 			payload.PoId,
 			payload.SupplierId,
@@ -843,29 +949,35 @@ func NewCreateGRNService(db *gorm.DB, payload GRNPayload) (map[string]interface{
 			item.ProductId,
 			item.ProductName,
 
-			toString(item.Design.Id),
+			SafeInt(item.Design.Id),
 			item.Design.Name,
 
-			toString(item.Pattern.Id),
+			SafeInt(item.Pattern.Id),
 			item.Pattern.Name,
 
-			toString(item.Variant.Id),
+			SafeInt(item.Variant.Id),
 			item.Variant.Name,
 
-			toString(item.Color.Id),
+			SafeInt(item.Color.Id),
 			item.Color.Name,
 
-			toString(item.Size.Id),
+			SafeInt(item.Size.Id),
 			item.Size.Name,
 
 			toString(item.Cost),
 			toString(item.ProfitPercent),
 			toString(item.Total),
 
-			now,
+			now,     // createdAt
+			"admin", // createdBy (or roleName)
+			nil,     // updatedAt
+			nil,     // updatedBy
 
-			payload.BranchId, // ✅ INTEGER (no cast required)
-			false,            // ✅ BOOLEAN
+			payload.BranchId,
+			false, // isDelete
+
+			1,   // quantity (default)
+			sku, // newly generated SKU
 		).Error
 
 		if err != nil {
@@ -873,13 +985,6 @@ func NewCreateGRNService(db *gorm.DB, payload GRNPayload) (map[string]interface{
 			return nil, err
 		}
 	}
-
-	// UPDATE PO → Increase received qty
-	db.Exec(`
-		UPDATE "PurchaseOrderManagement"."PurchaseOrderItems"
-		SET "receivedQuantity" = COALESCE("receivedQuantity"::numeric, 0) + 1
-		WHERE "purchaseOrderId" = ?
-	`, payload.PoId)
 
 	return map[string]interface{}{
 		"grnId": grnId,
