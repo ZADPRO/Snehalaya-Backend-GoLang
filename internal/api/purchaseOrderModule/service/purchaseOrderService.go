@@ -1024,3 +1024,118 @@ func NewGetSingleGRNService(db *gorm.DB, grnId int) (map[string]interface{}, err
 	header["items"] = items
 	return header, nil
 }
+
+func NewGetInventoryListService(db *gorm.DB) ([]map[string]interface{}, error) {
+	log := logger.InitLogger()
+	log.Info("🛠️ NewGetInventoryListService invoked")
+
+	var list []map[string]interface{}
+
+	err := db.Raw(`
+		SELECT 
+			gi.id,
+			gi.sku AS "barcode",
+			gi."productName",
+			gi."productId",
+			gi."grnId",
+
+			gi."designId",
+			gi."designName",
+			gi."patternId",
+			gi."patternName",
+			gi."varientId",
+			gi."varientName",
+			gi."colorId",
+			gi."colorName",
+			gi."sizeId",
+			gi."sizeName",
+			
+			c."categoryName",
+			sc."subCategoryName",
+			br."refBranchName",
+			br."refBranchCode",
+			s."supplierName",
+
+			g."poNumber" AS "grnNumber",
+			g.branchid AS "branchId",
+			g."branchCode",
+
+			po."createdAt" AS "poCreatedDate",
+			po."supplierId" AS "poSupplierId",
+
+			sp."categoryId",
+			sp."subCategoryId",
+
+			c."categoryName",
+			sc."subCategoryName",
+
+			gi.cost AS "unitCost",
+			gi.total AS "totalAmount",
+			gi."profitPercent" AS "marginPercent",
+
+			poi."discountPercent",
+			poi."discountAmount",
+
+			pi.file_name AS "productImage",
+			pi.extracted_sku AS "imageSku",
+
+			s."supplierName",
+			br."refBranchName",
+			br."refBranchCode",
+
+			gi."createdAt",
+			gi."createdBy"
+
+		FROM "PurchaseOrderManagement"."PurchaseOrderGRNItems" gi
+
+		-- GRN Header
+		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderGRN" g
+			ON g.id = gi."grnId"
+
+		-- PO Header
+		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrders" po
+			ON po.id = gi."purchaseOrderId"
+
+		-- Supplier
+		LEFT JOIN public."Supplier" s
+			ON s."supplierId" = po."supplierId"
+
+		-- Branch (from PO)
+		LEFT JOIN public."Branches" br
+			ON br."refBranchId" = po.branchid
+
+		-- PO Items
+		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderItems" poi
+			ON poi.id = gi."lineNo"::int
+			AND poi."purchaseOrderId" = gi."purchaseOrderId"
+
+		-- Product master for category/subcategory
+		LEFT JOIN public."SettingsProducts" sp
+			ON sp.id = gi."productId"
+
+		-- Category Name
+		LEFT JOIN public."Categories" c
+			ON c."refCategoryid" = sp."categoryId"
+
+		-- SubCategory Name
+		LEFT JOIN public."SubCategories" sc
+			ON sc."refSubCategoryId" = sp."subCategoryId"
+
+		-- Product images
+		LEFT JOIN "purchaseOrderMgmt"."ProductImages" pi
+			ON pi.extracted_sku = gi.sku
+			AND pi.is_delete = FALSE
+
+		WHERE gi."isDelete" = FALSE
+
+		ORDER BY gi.id DESC;
+	`).Scan(&list).Error
+
+	if err != nil {
+		log.Error("❌ Failed loading inventory list: " + err.Error())
+		return nil, err
+	}
+
+	log.Infof("📦 Total inventory records: %d", len(list))
+	return list, nil
+}

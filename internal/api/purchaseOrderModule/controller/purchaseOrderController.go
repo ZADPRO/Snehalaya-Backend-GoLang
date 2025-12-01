@@ -11,7 +11,6 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
-
 )
 
 // CREATE PURCHASE ORDER
@@ -534,6 +533,36 @@ func NewGetSingleGRNController() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"status": true,
 			"data":   data,
+		})
+	}
+}
+
+func NewGetInventoryListController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("\n\n📦 GetInventoryListController invoked")
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		log.Info("📥 Fetching Inventory List")
+		inventoryList, err := purchaseOrderService.NewGetInventoryListService(dbConn)
+
+		if err != nil {
+			log.Error("❌ Failed to fetch inventory: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": false,
+				"error":  err.Error(),
+			})
+			return
+		}
+
+		log.Infof("📊 Inventory items fetched: %d", len(inventoryList))
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   inventoryList,
 		})
 	}
 }

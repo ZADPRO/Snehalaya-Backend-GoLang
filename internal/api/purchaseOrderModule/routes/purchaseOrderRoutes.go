@@ -39,4 +39,9 @@ func PurhcaseOrderRoutes(router *gin.Engine) {
 	route.GET("/grn/list", accesstoken.JWTMiddleware(), purchaseOrderController.NewGetAllGRNController())
 	route.GET("/grn/:id", accesstoken.JWTMiddleware(), purchaseOrderController.NewGetSingleGRNController())
 
+	// INVENTORY
+	route.GET("/getInventoryList",
+		accesstoken.JWTMiddleware(),
+		purchaseOrderController.NewGetInventoryListController(),
+	)
 }
