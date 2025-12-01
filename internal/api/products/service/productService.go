@@ -12,6 +12,7 @@ import (
 	productModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/products/model"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
+
 )
 
 func CreatePOProduct(db *gorm.DB, product *productModel.POProduct) error {
@@ -583,4 +584,279 @@ func GetSinglePurchaseOrderAcceptedProductService(db *gorm.DB, productInstanceId
 		PurchaseOrderAcceptedProductResponse: product,
 		Images:                               imageResponses,
 	}, nil
+}
+
+type GRNProduct struct {
+	ProductID       int    `json:"productId"`
+	ProductName     string `json:"productName"`
+	SKU             string `json:"sku"`
+	ProductBranchID int    `json:"productBranchId"`
+	Quantity        int    `json:"quantity"`
+	Cost            string `json:"cost"`
+	Total           string `json:"total"`
+	HSNCode         string `json:"hsnCode"`
+	TaxPercentage   string `json:"taxPercentage"`
+	ProductCode     string `json:"productCode"`
+	RefBranchName   string `json:"refBranchName"`
+	IsPresent       bool   `json:"isPresent" gorm:"-"`
+}
+
+func GetSKUFromGRN(db *gorm.DB, branchID int, sku string) (map[string]interface{}, bool, string, error) {
+
+	product := make(map[string]interface{})
+	otherProduct := make(map[string]interface{})
+
+	// 1️⃣ SAME BRANCH CHECK
+	err := db.Raw(`
+        SELECT 
+            g.*,
+            sp.*,
+            b."refBranchName"
+        FROM "PurchaseOrderManagement"."PurchaseOrderGRNItems" g
+        JOIN public."SettingsProducts" sp 
+            ON g."productId" = sp."id"
+        JOIN public."Branches" b 
+            ON g."productBranchId" = b."refBranchId"
+        WHERE g."productBranchId" = ?
+        AND g.sku = ?
+        AND g."isDelete" = false
+        LIMIT 1
+    `, branchID, sku).Scan(&product).Error
+
+	if err == nil && product["sku"] != nil {
+		return product, true, product["refBranchName"].(string), nil
+	}
+
+	// 2️⃣ OTHER BRANCH CHECK
+	err2 := db.Raw(`
+        SELECT 
+            g.*,
+            sp.*,
+            b."refBranchName"
+        FROM "PurchaseOrderManagement"."PurchaseOrderGRNItems" g
+        JOIN public."SettingsProducts" sp 
+            ON g."productId" = sp."id"
+        JOIN public."Branches" b 
+            ON g."productBranchId" = b."refBranchId"
+        WHERE g.sku = ?
+        AND g."isDelete" = false
+        LIMIT 1
+    `, sku).Scan(&otherProduct).Error
+
+	if err2 != nil || otherProduct["sku"] == nil {
+		return nil, false, "", fmt.Errorf("SKU not found in any branch")
+	}
+
+	return otherProduct, false, otherProduct["refBranchName"].(string), nil
+}
+
+type StockTransferItem struct {
+	GRNItemId int    `json:"grnItemId"`
+	ProductId int    `json:"productId"`
+	SKU       string `json:"sku"`
+}
+
+type StockTransferRequest struct {
+	FromBranchId int                 `json:"fromBranchId"`
+	ToBranchId   int                 `json:"toBranchId"`
+	Items        []StockTransferItem `json:"items"`
+}
+
+func TransferStock(db *gorm.DB, payload productModel.NewStockTransferRequest) (int, error) {
+
+	var transferID int
+
+	err := db.Transaction(func(tx *gorm.DB) error {
+
+		// 1️⃣ Fetch Branch Code
+		var branchCode string
+		err := tx.Raw(`
+			SELECT "refBranchCode"
+			FROM public."Branches"
+			WHERE "refBranchId" = ?
+		`, payload.FromBranchId).Scan(&branchCode).Error
+
+		if err != nil {
+			return fmt.Errorf("failed to get branch code: %v", err)
+		}
+		if branchCode == "" {
+			return fmt.Errorf("branch code not found for branch %d", payload.FromBranchId)
+		}
+
+		var lastNumber int
+
+		err = tx.Raw(`
+			SELECT 
+				CAST(SUBSTRING("stockTransferNumber", LENGTH("stockTransferNumber") - 4) AS INTEGER)
+			FROM "purchaseOrderMgmt"."StockTransferMaster"
+			WHERE "stockTransferNumber" LIKE 'ST%'
+			ORDER BY id DESC
+			LIMIT 1
+		`).Scan(&lastNumber).Error
+
+		if err != nil && err != gorm.ErrRecordNotFound {
+			return fmt.Errorf("failed to fetch last transfer number: %v", err)
+		}
+
+		nextNumber := lastNumber + 1
+
+		stockTransferNumber := fmt.Sprintf("ST%s%05d", branchCode, nextNumber)
+
+		master := struct {
+			ID                  int    `gorm:"column:id;primaryKey"`
+			FromBranchID        int    `gorm:"column:from_branch_id"`
+			ToBranchID          int    `gorm:"column:to_branch_id"`
+			CreatedAt           string `gorm:"column:created_at"`
+			CreatedBy           string `gorm:"column:created_by"`
+			UpdatedAt           string `gorm:"column:updated_at"`
+			UpdatedBy           string `gorm:"column:updated_by"`
+			IsDelete            bool   `gorm:"column:is_delete"`
+			StockTransferNumber string `gorm:"column:stockTransferNumber"`
+		}{
+			FromBranchID:        payload.FromBranchId,
+			ToBranchID:          payload.ToBranchId,
+			CreatedAt:           time.Now().Format("2006-01-02 15:04:05"),
+			CreatedBy:           "admin",
+			UpdatedAt:           "",
+			UpdatedBy:           "",
+			IsDelete:            false,
+			StockTransferNumber: stockTransferNumber,
+		}
+
+		if err := tx.Table(`"purchaseOrderMgmt"."StockTransferMaster"`).
+			Create(&master).Error; err != nil {
+			return fmt.Errorf("failed to create stock transfer master: %v", err)
+		}
+
+		transferID = master.ID
+
+		for _, item := range payload.Items {
+
+			itemRecord := struct {
+				ID               int    `gorm:"column:id;primaryKey"`
+				StockTransferID  int    `gorm:"column:stock_transfer_id"`
+				GRNItemID        int    `gorm:"column:grn_item_id"`
+				SKU              string `gorm:"column:sku"`
+				CreatedAt        string `gorm:"column:created_at"`
+				CreatedBy        string `gorm:"column:created_by"`
+				UpdatedAt        string `gorm:"column:updated_at"`
+				UpdatedBy        string `gorm:"column:updated_by"`
+				IsReceived       bool   `gorm:"column:is_received"`
+				AcceptanceStatus string `gorm:"column:acceptance_status"`
+			}{
+				StockTransferID:  master.ID,
+				GRNItemID:        item.GRNItemId,
+				SKU:              item.SKU,
+				CreatedAt:        time.Now().Format("2006-01-02 15:04:05"),
+				CreatedBy:        "admin",
+				UpdatedAt:        "",
+				UpdatedBy:        "",
+				IsReceived:       false,
+				AcceptanceStatus: "In Transit",
+			}
+
+			if err := tx.Table(`"purchaseOrderMgmt"."StockTransferItems"`).
+				Create(&itemRecord).Error; err != nil {
+				return fmt.Errorf("failed to insert stock transfer item: %v", err)
+			}
+
+			audit := struct {
+				ID         int    `gorm:"column:id;primaryKey"`
+				ProductID  int    `gorm:"column:productid"`
+				SKU        string `gorm:"column:sku"`
+				FromBranch int    `gorm:"column:frombranchid"`
+				ToBranch   int    `gorm:"column:tobranchid"`
+				CreatedAt  string `gorm:"column:createdat"`
+				CreatedBy  string `gorm:"column:createdby"`
+			}{
+				ProductID:  item.ProductId,
+				SKU:        item.SKU,
+				FromBranch: payload.FromBranchId,
+				ToBranch:   payload.ToBranchId,
+				CreatedAt:  time.Now().Format("2006-01-02 15:04:05"),
+				CreatedBy:  "admin",
+			}
+
+			if err := tx.Table(`"PurchaseOrderManagement"."StockTransferAudit"`).
+				Create(&audit).Error; err != nil {
+				return fmt.Errorf("failed to insert audit: %v", err)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return transferID, nil
+}
+
+func GetStockTransferMasterList(db *gorm.DB) ([]map[string]interface{}, error) {
+	var results []map[string]interface{}
+
+	query := `
+        SELECT 
+            stm.id,
+            stm."stockTransferNumber",
+            stm.from_branch_id,
+            fb."refBranchName" AS from_branch_name,
+            fb."refBranchCode" AS from_branch_code,
+            stm.to_branch_id,
+            tb."refBranchName" AS to_branch_name,
+            tb."refBranchCode" AS to_branch_code,
+            stm.created_at,
+
+            (
+                SELECT COUNT(*) 
+                FROM "purchaseOrderMgmt"."StockTransferItems" sti 
+                WHERE sti.stock_transfer_id = stm.id
+            ) AS item_count
+
+        FROM "purchaseOrderMgmt"."StockTransferMaster" stm
+        LEFT JOIN public."Branches" fb ON fb."refBranchId" = stm.from_branch_id
+        LEFT JOIN public."Branches" tb ON tb."refBranchId" = stm.to_branch_id
+        WHERE stm.is_delete = false
+        ORDER BY stm.id DESC
+    `
+
+	err := db.Raw(query).Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+func GetStockTransferItems(db *gorm.DB, transferId int) ([]map[string]interface{}, error) {
+	var results []map[string]interface{}
+
+	query := `
+       SELECT 
+            sti.id,
+            sti.stock_transfer_id,
+            sti.grn_item_id,
+            sti.sku,
+            sti.is_received,
+            sti.acceptance_status,
+            sti.created_at,
+            sti.created_by,
+            po."productName",
+
+            po."productBranchId"
+
+        FROM "purchaseOrderMgmt"."StockTransferItems" sti
+        LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderGRNItems" po
+            ON po.id = sti.grn_item_id
+        WHERE sti.stock_transfer_id = $1
+        ORDER BY sti.id ASC
+    `
+
+	err := db.Raw(query, transferId).Scan(&results).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return results, nil
 }

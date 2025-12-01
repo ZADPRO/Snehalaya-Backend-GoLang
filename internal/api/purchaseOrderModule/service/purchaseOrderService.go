@@ -6,11 +6,13 @@ import (
 	"strconv"
 	"time"
 
+	bulkImageUploadService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/bulkImageHandling/service"
 	transactionLogger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/helper/transactions/service"
 	purchaseOrderModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/model"
 	purchaseOrderQuery "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/query"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
+
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, payload *purchaseOrderModel.CreatePORequest, createdBy string) error {
@@ -1032,12 +1034,95 @@ func NewGetInventoryListService(db *gorm.DB) ([]map[string]interface{}, error) {
 	var list []map[string]interface{}
 
 	err := db.Raw(`
+		SELECT
+  gi.id,
+  gi.sku AS "barcode",
+  gi."productName",
+  gi."productId",
+  gi."grnId",
+  gi."designId",
+  gi."designName",
+  gi."patternId",
+  gi."patternName",
+  gi."varientId",
+  gi."varientName",
+  gi."colorId",
+  gi."colorName",
+  gi."sizeId",
+  gi."sizeName",
+  c."categoryName",
+  sc."subCategoryName",
+  br."refBranchName",
+  s."supplierName",
+  g."poNumber" AS "grnNumber",
+  gi."productBranchId" AS "branchId",
+  br."refBranchCode",
+  po."createdAt" AS "poCreatedDate",
+  po."supplierId" AS "poSupplierId",
+  sp."categoryId",
+  sp."subCategoryId",
+  c."categoryName",
+  sc."subCategoryName",
+  gi.cost AS "unitCost",
+  gi.total AS "totalAmount",
+  gi."profitPercent" AS "marginPercent",
+  poi."discountPercent",
+  poi."discountAmount",
+  pi.file_name AS "productImage",
+  pi.extracted_sku AS "imageSku",
+  s."supplierName",
+  br."refBranchName",
+  gi."createdAt",
+  gi."createdBy"
+FROM
+  "PurchaseOrderManagement"."PurchaseOrderGRNItems" gi
+  -- GRN Header
+  LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderGRN" g ON g.id = gi."grnId"
+  -- PO Header
+  LEFT JOIN "PurchaseOrderManagement"."PurchaseOrders" po ON po.id = gi."purchaseOrderId"
+  -- Supplier
+  LEFT JOIN public."Supplier" s ON s."supplierId" = po."supplierId"
+  -- Branch (from PO)
+  LEFT JOIN public."Branches" br ON br."refBranchId" = gi."productBranchId"
+  -- PO Items
+  LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderItems" poi ON poi.id = gi."lineNo"::int
+  AND poi."purchaseOrderId" = gi."purchaseOrderId"
+  -- Product master for category/subcategory
+  LEFT JOIN public."SettingsProducts" sp ON sp.id = gi."productId"
+  -- Category Name
+  LEFT JOIN public."Categories" c ON c."refCategoryid" = sp."categoryId"
+  -- SubCategory Name
+  LEFT JOIN public."SubCategories" sc ON sc."refSubCategoryId" = sp."subCategoryId"
+  -- Product images
+  LEFT JOIN "purchaseOrderMgmt"."ProductImages" pi ON pi.extracted_sku = gi.sku
+  AND pi.is_delete = FALSE
+WHERE
+  gi."isDelete" = FALSE
+ORDER BY
+  gi.id DESC;
+	`).Scan(&list).Error
+
+	if err != nil {
+		log.Error("❌ Failed loading inventory list: " + err.Error())
+		return nil, err
+	}
+
+	log.Infof("📦 Total inventory records: %d", len(list))
+	return list, nil
+}
+
+func NewGetInventoryProductBySKUService(db *gorm.DB, sku string) (map[string]interface{}, error) {
+	log := logger.InitLogger()
+	log.Infof("🛠️ Fetch product for SKU: %s", sku)
+
+	var product map[string]interface{}
+
+	err := db.Raw(`
 		SELECT 
 			gi.id,
 			gi.sku AS "barcode",
 			gi."productName",
 			gi."productId",
-			gi."grnId",
 
 			gi."designId",
 			gi."designName",
@@ -1049,12 +1134,6 @@ func NewGetInventoryListService(db *gorm.DB) ([]map[string]interface{}, error) {
 			gi."colorName",
 			gi."sizeId",
 			gi."sizeName",
-			
-			c."categoryName",
-			sc."subCategoryName",
-			br."refBranchName",
-			br."refBranchCode",
-			s."supplierName",
 
 			g."poNumber" AS "grnNumber",
 			g.branchid AS "branchId",
@@ -1076,9 +1155,6 @@ func NewGetInventoryListService(db *gorm.DB) ([]map[string]interface{}, error) {
 			poi."discountPercent",
 			poi."discountAmount",
 
-			pi.file_name AS "productImage",
-			pi.extracted_sku AS "imageSku",
-
 			s."supplierName",
 			br."refBranchName",
 			br."refBranchCode",
@@ -1088,54 +1164,81 @@ func NewGetInventoryListService(db *gorm.DB) ([]map[string]interface{}, error) {
 
 		FROM "PurchaseOrderManagement"."PurchaseOrderGRNItems" gi
 
-		-- GRN Header
 		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderGRN" g
 			ON g.id = gi."grnId"
 
-		-- PO Header
 		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrders" po
 			ON po.id = gi."purchaseOrderId"
 
-		-- Supplier
 		LEFT JOIN public."Supplier" s
 			ON s."supplierId" = po."supplierId"
 
-		-- Branch (from PO)
 		LEFT JOIN public."Branches" br
 			ON br."refBranchId" = po.branchid
 
-		-- PO Items
 		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderItems" poi
 			ON poi.id = gi."lineNo"::int
 			AND poi."purchaseOrderId" = gi."purchaseOrderId"
 
-		-- Product master for category/subcategory
 		LEFT JOIN public."SettingsProducts" sp
 			ON sp.id = gi."productId"
 
-		-- Category Name
 		LEFT JOIN public."Categories" c
 			ON c."refCategoryid" = sp."categoryId"
 
-		-- SubCategory Name
 		LEFT JOIN public."SubCategories" sc
 			ON sc."refSubCategoryId" = sp."subCategoryId"
 
-		-- Product images
-		LEFT JOIN "purchaseOrderMgmt"."ProductImages" pi
-			ON pi.extracted_sku = gi.sku
-			AND pi.is_delete = FALSE
-
 		WHERE gi."isDelete" = FALSE
-
-		ORDER BY gi.id DESC;
-	`).Scan(&list).Error
+		AND gi.sku = ?
+		LIMIT 1;
+	`, sku).Scan(&product).Error
 
 	if err != nil {
-		log.Error("❌ Failed loading inventory list: " + err.Error())
+		log.Error("❌ Failed fetching product: " + err.Error())
 		return nil, err
 	}
 
-	log.Infof("📦 Total inventory records: %d", len(list))
-	return list, nil
+	if product == nil {
+		return nil, fmt.Errorf("No product found with SKU %s", sku)
+	}
+
+	var images []struct {
+		FileName string `gorm:"column:file_name"`
+	}
+
+	err = db.Table(`"purchaseOrderMgmt"."ProductImages"`).
+		Select("file_name").
+		Where("extracted_sku = ? AND is_delete = false", sku).
+		Scan(&images).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed to fetch product images: %v", err)
+	}
+
+	type ImageResponse struct {
+		FileName string `json:"fileName"`
+		ViewURL  string `json:"viewURL"`
+	}
+
+	var imageResponses []ImageResponse
+
+	for _, img := range images {
+		objectName := "bulk-images/" + img.FileName
+
+		viewURL, err := bulkImageUploadService.GetImageViewURL(objectName, 30)
+		if err != nil {
+			log.Errorf("⚠️ Failed generating URL for: %s", img.FileName)
+			continue
+		}
+
+		imageResponses = append(imageResponses, ImageResponse{
+			FileName: img.FileName,
+			ViewURL:  viewURL,
+		})
+	}
+
+	product["images"] = imageResponses
+
+	return product, nil
 }

@@ -30,6 +30,18 @@ func ProductManagementRoutes(router *gin.Engine) {
 
 	route.GET("/purchaseOrderAcceptedProducts/:id", accesstoken.JWTMiddleware(), productController.GetSinglePurchaseOrderAcceptedProductController())
 
+	route.POST(
+		"/check-sku-grn",
+		accesstoken.JWTMiddleware(),
+		productController.CheckSKUInGRNController(),
+	)
+
+	route.POST("/new-stock-transfer", accesstoken.JWTMiddleware(), productController.StockTransferController())
+
+	route.GET("/stock-transfer/list", accesstoken.JWTMiddleware(), productController.GetStockTransferMasterController())
+
+	route.GET("/stock-transfer/items/:transferId", accesstoken.JWTMiddleware(), productController.GetStockTransferItemsController())
+
 	// route.GET("/stock-transfer/:id", accesstoken.JWTMiddleware(), productController.GetStockTransferByIDController())
 
 }

@@ -11,6 +11,7 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
+
 )
 
 // CREATE PURCHASE ORDER
@@ -563,6 +564,47 @@ func NewGetInventoryListController() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"status": true,
 			"data":   inventoryList,
+		})
+	}
+}
+
+func NewGetInventoryProductBySKUController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		var payload struct {
+			SKU string `json:"sku" binding:"required"`
+		}
+
+		// Bind request JSON
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": false,
+				"error":  "SKU is required",
+			})
+			return
+		}
+
+		log.Infof("🔍 Fetching inventory details for SKU: %s", payload.SKU)
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		// ---- Call Service ----
+		product, err := purchaseOrderService.NewGetInventoryProductBySKUService(dbConn, payload.SKU)
+
+		if err != nil {
+			log.Error("❌ Failed to fetch inventory product: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": false,
+				"error":  err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   product,
 		})
 	}
 }

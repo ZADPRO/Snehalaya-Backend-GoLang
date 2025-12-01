@@ -171,3 +171,47 @@ type ProductImage struct {
 func (ProductImage) TableName() string {
 	return `"purchaseOrderMgmt"."ProductImages"`
 }
+
+type NewStockTransfer struct {
+	StockTransferID   int    `json:"stock_transfer_id" gorm:"primaryKey"`
+	FromBranchID      int    `json:"from_branch_id"`
+	FromBranchName    string `json:"from_branch_name"`
+	FromBranchEmail   string `json:"from_branch_email"`
+	FromBranchAddress string `json:"from_branch_address"`
+	ToBranchID        int    `json:"to_branch_id"`
+	ToBranchName      string `json:"to_branch_name"`
+	ToBranchEmail     string `json:"to_branch_email"`
+	ToBranchAddress   string `json:"to_branch_address"`
+	ModeOfTransport   string `json:"mode_of_transport"`
+	SubTotal          string `json:"sub_total"`
+	DiscountOverall   string `json:"discount_overall"`
+	TotalAmount       string `json:"total_amount"`
+	PaymentPending    string `json:"payment_pending"`
+	PoNumber          string `json:"po_number"`
+	Status            int    `json:"status"`
+	CreatedAt         string `json:"created_at"`
+	CreatedBy         string `json:"created_by"`
+	UpdatedAt         string `json:"updated_at"`
+	UpdatedBy         string `json:"updated_by"`
+	IsDelete          bool   `json:"is_delete"`
+}
+
+type NewStockTransferItem struct {
+	StockTransferItemID int    `json:"stock_transfer_item_id" gorm:"primaryKey"`
+	StockTransferID     int    `json:"stock_transfer_id"`
+	ProductInstanceID   int    `json:"product_instance_id"`
+	ProductName         string `json:"product_name"`
+	SKU                 string `json:"sku"`
+	IsReceived          bool   `json:"is_received"`
+	AcceptanceStatus    string `json:"acceptance_status"`
+}
+
+type NewStockTransferRequest struct {
+	FromBranchId int `json:"fromBranchId"`
+	ToBranchId   int `json:"toBranchId"`
+	Items        []struct {
+		GRNItemId int    `json:"grnItemId"`
+		ProductId int    `json:"productId"`
+		SKU       string `json:"sku"`
+	} `json:"items"`
+}

@@ -4,6 +4,7 @@ import (
 	purchaseOrderController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
+
 )
 
 func PurhcaseOrderRoutes(router *gin.Engine) {
@@ -44,4 +45,10 @@ func PurhcaseOrderRoutes(router *gin.Engine) {
 		accesstoken.JWTMiddleware(),
 		purchaseOrderController.NewGetInventoryListController(),
 	)
+
+	route.POST("/getInventoryProductBySKU",
+		accesstoken.JWTMiddleware(),
+		purchaseOrderController.NewGetInventoryProductBySKUController(),
+	)
+
 }

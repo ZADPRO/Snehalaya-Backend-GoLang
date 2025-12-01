@@ -10,6 +10,7 @@ import (
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
+
 )
 
 func CreatePOProductController() gin.HandlerFunc {
@@ -482,5 +483,131 @@ func GetSinglePurchaseOrderAcceptedProductController() gin.HandlerFunc {
 
 		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
 		c.JSON(http.StatusOK, gin.H{"status": true, "data": result, "token": token})
+	}
+}
+
+type CheckSKURequestLatest struct {
+	FromBranchID int    `json:"fromBranchId"`
+	SKU          string `json:"sku"`
+}
+
+func CheckSKUInGRNController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var req CheckSKURequestLatest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid request: " + err.Error(),
+			})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		product, isPresent, branchName, err := productService.GetSKUFromGRN(
+			dbConn,
+			req.FromBranchID,
+			req.SKU,
+		)
+
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"status":    false,
+				"message":   err.Error(),
+				"isPresent": false,
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":     true,
+			"isPresent":  isPresent,
+			"branchName": branchName,
+			"data":       product,
+		})
+	}
+}
+
+func StockTransferController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var req productModel.NewStockTransferRequest
+
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		id, err := productService.TransferStock(dbConn, req)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":     true,
+			"message":    "Stock transfer created successfully",
+			"transferId": id,
+		})
+	}
+}
+
+func GetStockTransferMasterController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		data, err := productService.GetStockTransferMasterList(dbConn)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   data,
+		})
+	}
+}
+
+func GetStockTransferItemsController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		transferIdStr := c.Param("transferId")         // <-- FIXED
+		transferId, err := strconv.Atoi(transferIdStr) // safer
+
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid transfer ID",
+			})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		data, err := productService.GetStockTransferItems(dbConn, transferId)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   data,
+		})
 	}
 }
