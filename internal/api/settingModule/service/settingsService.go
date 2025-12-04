@@ -14,7 +14,6 @@ import (
 	mailService "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/MailService"
 	"github.com/lib/pq"
 	"gorm.io/gorm"
-
 )
 
 func CheckInitialCategoryCodeService(db *gorm.DB, categoryName string) (string, error) {
@@ -2152,4 +2151,233 @@ func DeleteMasterService(db *gorm.DB, table string, ids []int, roleName string) 
 	`, table)
 
 	return db.Exec(query, now, roleName, pq.Array(ids)).Error
+}
+
+// ROUND OFF SERVICE WITH DETAILED LOGGING
+func CreateRoundOffService(db *gorm.DB, payload model.RoundOffPayload, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("🛠 CreateRoundOffService invoked")
+	log.Infof("📥 Payload received: %+v", payload)
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	log.Info("📝 Preparing round_off_settings record")
+
+	setting := model.RoundOffSetting{
+		FromRange: payload.FromRange,
+		ToRange:   payload.ToRange,
+		CreatedAt: now,
+		UpdatedAt: now,
+		CreatedBy: roleName,
+		UpdatedBy: roleName,
+		IsDelete:  false,
+	}
+
+	log.Info("💾 Inserting into round_off_settings table")
+	err := db.Table("round_off_settings").Create(&setting).Error
+	if err != nil {
+		log.Errorf("❌ Failed to create round_off_settings: %v", err)
+		return err
+	}
+
+	log.Infof("✅ RoundOffSetting created with ID: %d", setting.Id)
+
+	// Insert Prices
+	for _, p := range payload.Prices {
+		log.Infof("📝 Preparing price entry: %d", p)
+
+		price := model.RoundOffPrice{
+			RoundOffId: setting.Id,
+			Price:      fmt.Sprintf("%d", p),
+			CreatedAt:  now,
+			UpdatedAt:  now,
+			CreatedBy:  roleName,
+			UpdatedBy:  roleName,
+			IsDelete:   false,
+		}
+
+		log.Infof("💾 Inserting price %d into round_off_prices", p)
+		err := db.Table("round_off_prices").Create(&price).Error
+		if err != nil {
+			log.Errorf("❌ Failed to insert round_off_price %d: %v", p, err)
+		} else {
+			log.Infof("✅ Price %d inserted successfully", p)
+		}
+	}
+
+	log.Info("🎉 CreateRoundOffService completed successfully")
+	return nil
+}
+
+func GetAllRoundOffService(db *gorm.DB) []map[string]interface{} {
+	log := logger.InitLogger()
+	log.Info("📦 GetAllRoundOffService invoked")
+
+	var settings []model.RoundOffSetting
+
+	log.Info("🔍 Fetching round_off_settings (non-deleted)")
+	err := db.Table("round_off_settings").
+		Where(`"isdelete" = ?`, false).
+		Find(&settings).Error
+
+	if err != nil {
+		log.Errorf("❌ Failed to fetch round_off_settings: %v", err)
+	}
+
+	log.Infof("📊 Settings found: %d", len(settings))
+
+	var result []map[string]interface{}
+
+	for _, s := range settings {
+		log.Infof("🔍 Fetching prices for round_off_id = %d", s.Id)
+
+		var prices []model.RoundOffPrice
+		err := db.Table("round_off_prices").
+			Where(`"round_off_id" = ? AND "isdelete" = ?`, s.Id, false).
+			Find(&prices).Error
+
+		if err != nil {
+			log.Errorf("❌ Failed to fetch prices for ID %d: %v", s.Id, err)
+			continue
+		}
+
+		priceValues := []int{}
+		for _, p := range prices {
+			v, _ := strconv.Atoi(p.Price)
+			priceValues = append(priceValues, v)
+		}
+
+		log.Infof("📌 Prices for ID %d: %+v", s.Id, priceValues)
+
+		result = append(result, map[string]interface{}{
+			"id":        s.Id,
+			"fromRange": s.FromRange,
+			"toRange":   s.ToRange,
+			"prices":    priceValues,
+		})
+	}
+
+	log.Info("📤 Returning round-off settings list")
+	return result
+}
+
+func UpdateRoundOffService(db *gorm.DB, payload model.RoundOffPayload, roleName string) error {
+	log := logger.InitLogger()
+	log.Info("🛠 UpdateRoundOffService invoked")
+	log.Infof("📥 Update Payload: %+v", payload)
+
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	// Soft delete existing prices
+	log.Infof("🗑 Soft deleting old prices for round_off_id = %d", *payload.Id)
+
+	err := db.Table("round_off_prices").
+		Where(`"round_off_id" = ?`, payload.Id).
+		Update("isDelete", true).Error
+
+	if err != nil {
+		log.Errorf("❌ Failed to soft delete old prices: %v", err)
+		return err
+	}
+
+	log.Info("📝 Updating round_off_settings record")
+
+	err = db.Table("round_off_settings").
+		Where(`"id" = ?`, payload.Id).
+		Updates(map[string]interface{}{
+			"from_range": payload.FromRange,
+			"to_range":   payload.ToRange,
+			"updated_at": now,
+			"updated_by": roleName,
+		}).Error
+
+	if err != nil {
+		log.Errorf("❌ Failed to update round_off_settings: %v", err)
+		return err
+	}
+
+	log.Info("💾 Inserting new prices")
+
+	// Insert updated prices
+	for _, p := range payload.Prices {
+		log.Infof("📝 Adding updated price: %d", p)
+
+		price := model.RoundOffPrice{
+			RoundOffId: *payload.Id,
+			Price:      fmt.Sprintf("%d", p),
+			CreatedAt:  now,
+			UpdatedAt:  now,
+			CreatedBy:  roleName,
+			UpdatedBy:  roleName,
+			IsDelete:   false,
+		}
+
+		err := db.Table("round_off_prices").Create(&price).Error
+		if err != nil {
+			log.Errorf("❌ Failed to insert price %d: %v", p, err)
+		} else {
+			log.Infof("✅ Inserted updated price: %d", p)
+		}
+	}
+
+	log.Info("🎉 UpdateRoundOffService completed successfully")
+	return nil
+}
+
+func DeleteRoundOffService(db *gorm.DB, id string) error {
+	log := logger.InitLogger()
+	log.Infof("🗑 DeleteRoundOffService invoked for ID: %s", id)
+
+	log.Info("🗑 Soft deleting round_off_settings")
+	err := db.Table("round_off_settings").
+		Where(`"id" = ?`, id).
+		Update("isDelete", true).Error
+
+	if err != nil {
+		log.Errorf("❌ Failed to soft delete round_off_settings: %v", err)
+	}
+
+	log.Info("🗑 Soft deleting round_off_prices")
+	err = db.Table("round_off_prices").
+		Where(`"round_off_id" = ?`, id).
+		Update("isDelete", true).Error
+
+	if err != nil {
+		log.Errorf("❌ Failed to soft delete round_off_prices: %v", err)
+	}
+
+	log.Info("🎉 DeleteRoundOffService completed successfully")
+	return nil
+}
+
+func BulkDeleteRoundOffService(db *gorm.DB, ids []int) error {
+	log := logger.InitLogger()
+	log.Infof("🗑 BulkDeleteRoundOffService invoked for IDs: %+v", ids)
+
+	for _, id := range ids {
+		log.Infof("🔄 Processing ID: %d", id)
+
+		log.Info("🗑 Soft deleting round_off_settings")
+		err := db.Table("round_off_settings").
+			Where(`"id" = ?`, id).
+			Update("isDelete", true).Error
+
+		if err != nil {
+			log.Errorf("❌ Failed deleting settings for ID %d: %v", id, err)
+		}
+
+		log.Info("🗑 Soft deleting round_off_prices")
+		err = db.Table("round_off_prices").
+			Where(`"round_off_id" = ?`, id).
+			Update("isDelete", true).Error
+
+		if err != nil {
+			log.Errorf("❌ Failed deleting prices for ID %d: %v", id, err)
+		}
+
+		log.Infof("✅ Successfully deleted ID %d", id)
+	}
+
+	log.Info("🎉 BulkDeleteRoundOffService completed")
+	return nil
 }

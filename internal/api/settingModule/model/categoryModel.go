@@ -379,3 +379,32 @@ type MasterUpdatePayload struct {
 	ID   int    `json:"id" binding:"required"`
 	Name string `json:"name" binding:"required"`
 }
+
+type RoundOffSetting struct {
+	Id        int    `json:"id" gorm:"primaryKey"`
+	FromRange string `json:"fromRange" gorm:"column:from_range"`
+	ToRange   string `json:"toRange" gorm:"column:to_range"`
+	CreatedAt string `json:"createdAt" gorm:"column:created_at"`
+	CreatedBy string `json:"createdBy" gorm:"column:created_by"`
+	UpdatedAt string `json:"updatedAt" gorm:"column:updated_at"`
+	UpdatedBy string `json:"updatedBy" gorm:"column:updated_by"`
+	IsDelete  bool   `json:"isDelete" gorm:"column:isdelete"` // FIX HERE
+}
+
+type RoundOffPrice struct {
+	Id         int    `json:"id" gorm:"primaryKey"`
+	RoundOffId int    `json:"roundOffId" gorm:"column:round_off_id"`
+	Price      string `json:"price" gorm:"column:price"`
+	CreatedAt  string `json:"createdAt" gorm:"column:created_at"`
+	CreatedBy  string `json:"createdBy" gorm:"column:created_by"`
+	UpdatedAt  string `json:"updatedAt" gorm:"column:updated_at"`
+	UpdatedBy  string `json:"updatedBy" gorm:"column:updated_by"`
+	IsDelete   bool   `json:"isDelete" gorm:"column:isdelete"` // FIX HERE
+}
+
+type RoundOffPayload struct {
+	Id        *int   `json:"id"`
+	FromRange string `json:"fromRange"`
+	ToRange   string `json:"toRange"`
+	Prices    []int  `json:"prices"`
+}

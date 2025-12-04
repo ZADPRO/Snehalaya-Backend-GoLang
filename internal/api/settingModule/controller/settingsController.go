@@ -12,7 +12,6 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
-
 )
 
 type CodeRequest struct {
@@ -2710,6 +2709,253 @@ func DeleteMasterController(table string) gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  true,
 			"message": fmt.Sprintf("%s deleted successfully", table),
+			"token":   token,
+		})
+	}
+}
+
+// ROUND OFF
+func CreateRoundOffController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("🚀 CreateRoundOffController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			log.Warn("❌ Missing context values")
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "Unauthorized",
+			})
+			return
+		}
+
+		var payload model.RoundOffPayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("❌ Invalid request: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		roleId, _ := roleType.ExtractIntFromInterface(roleIdValue)
+		roleName, _ := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+
+		err := settingsService.CreateRoundOffService(dbConnt, payload, roleName)
+		if err != nil {
+			log.Error("❌ Service Error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		// 🔥 Generate new access token
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Info("✅ Round Off Created Successfully")
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Round Off created successfully",
+			"token":   token,
+		})
+	}
+}
+
+func GetAllRoundOffController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📥 GetAllRoundOffController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "Unauthorized",
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		result := settingsService.GetAllRoundOffService(dbConnt)
+
+		// 🔥 Generate token
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		log.Infof("📊 Round Off fetched: %d items", len(result))
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   result,
+			"token":  token,
+		})
+	}
+}
+
+func UpdateRoundOffController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📥 UpdateRoundOffController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "Unauthorized",
+			})
+			return
+		}
+
+		var payload model.RoundOffPayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("❌ Invalid JSON")
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		roleId, _ := roleType.ExtractIntFromInterface(roleIdValue)
+		roleName, _ := roleType.GetRoleTypeNameByID(dbConnt, roleId)
+
+		err := settingsService.UpdateRoundOffService(dbConnt, payload, roleName)
+		if err != nil {
+			log.Error("❌ Update Error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		// 🔥 Generate token
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Round Off updated successfully",
+			"token":   token,
+		})
+	}
+}
+
+func DeleteRoundOffController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("🗑 DeleteRoundOffController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "Unauthorized",
+			})
+			return
+		}
+
+		roundOffId := c.Param("id")
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		err := settingsService.DeleteRoundOffService(dbConnt, roundOffId)
+		if err != nil {
+			log.Error("❌ Delete failed: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Failed to delete",
+			})
+			return
+		}
+
+		// 🔥 Token generation
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Round Off deleted successfully",
+			"token":   token,
+		})
+	}
+}
+
+func BulkDeleteRoundOffController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("🗑 BulkDeleteRoundOffController invoked")
+
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "Unauthorized",
+			})
+			return
+		}
+
+		var req struct {
+			Ids []int `json:"ids"`
+		}
+
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid request",
+			})
+			return
+		}
+
+		dbConnt, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		err := settingsService.BulkDeleteRoundOffService(dbConnt, req.Ids)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": "Bulk delete failed",
+			})
+			return
+		}
+
+		// 🔥 Token generation
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Bulk delete successful",
 			"token":   token,
 		})
 	}

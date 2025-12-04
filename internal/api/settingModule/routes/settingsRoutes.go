@@ -117,4 +117,11 @@ func SettingsAdminRoutes(router *gin.Engine) {
 	route.PUT("/patterns", accesstoken.JWTMiddleware(), settingsController.UpdateMasterController("Patterns"))
 	route.DELETE("/patterns", accesstoken.JWTMiddleware(), settingsController.DeleteMasterController("Patterns"))
 
+	// ROUND OFF ROUTES
+	route.POST("/round-off", accesstoken.JWTMiddleware(), settingsController.CreateRoundOffController())
+	route.GET("/round-off", accesstoken.JWTMiddleware(), settingsController.GetAllRoundOffController())
+	route.PUT("/round-off", accesstoken.JWTMiddleware(), settingsController.UpdateRoundOffController())
+	route.DELETE("/round-off/:id", accesstoken.JWTMiddleware(), settingsController.DeleteRoundOffController())
+	route.DELETE("/round-off", accesstoken.JWTMiddleware(), settingsController.BulkDeleteRoundOffController())
+
 }
