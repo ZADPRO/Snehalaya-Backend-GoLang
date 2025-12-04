@@ -2,6 +2,7 @@ package purchaseOrderService
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -12,7 +13,6 @@ import (
 	purchaseOrderQuery "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/query"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"gorm.io/gorm"
-
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, payload *purchaseOrderModel.CreatePORequest, createdBy string) error {
@@ -1230,4 +1230,431 @@ func NewGetInventoryProductBySKUService(db *gorm.DB, sku string) (map[string]int
 	product["images"] = imageResponses
 
 	return product, nil
+}
+
+func GetSinglePOGRNItemsService(db *gorm.DB, poId string) []map[string]interface{} {
+	log := logger.InitLogger()
+	log.Info("🛠️ Fetching GRN items for single PO")
+
+	var items []map[string]interface{}
+
+	query := `
+        SELECT 
+            gi.id AS "grnItemId",
+            gi."grnId",
+            g."purchaseOrderId",
+            g."supplierId",
+            g."supplierName",
+            g.branchid,
+            g."branchCode",
+            g."poNumber",
+            g."grnDate",
+
+            gi."lineNo",
+            gi."refNo",
+            gi."productId",
+            gi."productName",
+            gi."designId",
+            gi."designName",
+            gi."patternId",
+            gi."patternName",
+            gi."varientId",
+            gi."varientName",
+            gi."colorId",
+            gi."colorName",
+            gi."sizeId",
+            gi."sizeName",
+            gi.cost,
+            gi."profitPercent",
+            gi.total,
+            gi.quantity,
+            gi.sku,
+            gi."productBranchId",
+
+            gi."createdAt" AS itemCreatedAt,
+            gi."updatedAt" AS itemUpdatedAt
+
+        FROM 
+            "PurchaseOrderManagement"."PurchaseOrderGRN" g
+
+        JOIN 
+            "PurchaseOrderManagement"."PurchaseOrderGRNItems" gi
+        ON 
+            gi."grnId" = g.id
+            AND gi."isDelete" = FALSE
+
+        WHERE 
+            g."purchaseOrderId" = ?
+        
+        ORDER BY g.id DESC, gi.id ASC
+    `
+
+	db.Raw(query, poId).Scan(&items)
+
+	log.Infof("📦 Found %d GRN items", len(items))
+
+	return items
+}
+
+func ScanSKUService(db *gorm.DB, sku string, branchId interface{}) (map[string]interface{}, bool, error) {
+	log := logger.InitLogger()
+	log.Infof("🛠️ ScanSKUService invoked for SKU: %s", sku)
+
+	var product map[string]interface{}
+
+	// ===========================
+	// 1️⃣ Fetch full product info
+	// ===========================
+	err := db.Raw(`
+		SELECT 
+			gi.id,
+			gi.sku AS "barcode",
+			gi."productName",
+			gi."productId",
+
+			gi."designId",
+			gi."designName",
+			gi."patternId",
+			gi."patternName",
+			gi."varientId",
+			gi."varientName",
+			gi."colorId",
+			gi."colorName",
+			gi."sizeId",
+			gi."sizeName",
+
+			g."poNumber" AS "grnNumber",
+			g.branchid AS "branchId",
+			g."branchCode",
+
+			po."createdAt" AS "poCreatedDate",
+			po."supplierId" AS "poSupplierId",
+
+			sp."categoryId",
+			sp."subCategoryId",
+
+			c."categoryName",
+			sc."subCategoryName",
+
+			gi.cost AS "unitCost",
+			gi.total AS "totalAmount",
+			gi."profitPercent" AS "marginPercent",
+
+			poi."discountPercent",
+			poi."discountAmount",
+
+			s."supplierName",
+			br."refBranchName",
+			br."refBranchCode",
+
+			gi.quantity,
+			gi."productBranchId",
+
+			gi."createdAt",
+			gi."createdBy"
+
+		FROM "PurchaseOrderManagement"."PurchaseOrderGRNItems" gi
+
+		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderGRN" g
+			ON g.id = gi."grnId"
+
+		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrders" po
+			ON po.id = gi."purchaseOrderId"
+
+		LEFT JOIN public."Supplier" s
+			ON s."supplierId" = po."supplierId"
+
+		LEFT JOIN public."Branches" br
+			ON br."refBranchId" = po.branchid
+
+		LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderItems" poi
+			ON poi.id = gi."lineNo"::int
+			AND poi."purchaseOrderId" = gi."purchaseOrderId"
+
+		LEFT JOIN public."SettingsProducts" sp
+			ON sp.id = gi."productId"
+
+		LEFT JOIN public."Categories" c
+			ON c."refCategoryid" = sp."categoryId"
+
+		LEFT JOIN public."SubCategories" sc
+			ON sc."refSubCategoryId" = sp."subCategoryId"
+
+		WHERE gi."isDelete" = FALSE
+		AND gi.sku = ?
+		LIMIT 1;
+	`, sku).Scan(&product).Error
+
+	if err != nil {
+		log.Error("❌ DB error: " + err.Error())
+		return nil, false, err
+	}
+	if product == nil {
+		log.Warn("⚠ No product exists with this SKU")
+		return nil, false, nil
+	}
+
+	// ======================================
+	// 2️⃣ Validate Branch (branch-level access)
+	// ======================================
+	branchInt, _ := strconv.Atoi(fmt.Sprintf("%v", branchId))
+	productBranch := int(product["productBranchId"].(int32))
+
+	isFound := (productBranch == branchInt)
+
+	// If wrong branch → still return product but mark isFound = false
+	if !isFound {
+		log.Warnf("⚠ Branch mismatch: product is in branch %d but user is in branch %d", productBranch, branchInt)
+	}
+
+	// ======================================
+	// 3️⃣ Fetch product images (multiple)
+	// ======================================
+	var images []struct {
+		FileName string `gorm:"column:file_name"`
+	}
+
+	err = db.Table(`"purchaseOrderMgmt"."ProductImages"`).
+		Select("file_name").
+		Where("extracted_sku = ? AND is_delete = false", sku).
+		Scan(&images).Error
+
+	if err != nil {
+		log.Error("❌ Error fetching images: " + err.Error())
+		return product, isFound, nil
+	}
+
+	// ======================================
+	// 4️⃣ Generate viewable URLs (signed URLs)
+	// ======================================
+	type ImageResponse struct {
+		FileName string `json:"fileName"`
+		ViewURL  string `json:"viewURL"`
+	}
+
+	var imageResponses []ImageResponse
+
+	for _, img := range images {
+		objectName := "bulk-images/" + img.FileName
+
+		viewURL, urlErr := bulkImageUploadService.GetImageViewURL(objectName, 30)
+		if urlErr != nil {
+			log.Errorf("⚠ Failed to generate URL for %s", img.FileName)
+			continue
+		}
+
+		imageResponses = append(imageResponses, ImageResponse{
+			FileName: img.FileName,
+			ViewURL:  viewURL,
+		})
+	}
+
+	// Attach images
+	product["images"] = imageResponses
+
+	// ======================================
+	// 5️⃣ Return final result
+	// ======================================
+	return product, isFound, nil
+}
+
+func POSGetInventoryListService(db *gorm.DB) ([]map[string]interface{}, error) {
+	log := logger.InitLogger()
+	log.Info("🛠️ POSGetInventoryListService invoked (branchId = 4)")
+
+	var list []map[string]interface{}
+
+	err := db.Raw(`
+        SELECT
+            gi.id,
+            gi.sku AS "barcode",
+            gi."productName",
+            gi."productId",
+            gi."designId",
+            gi."designName",
+            gi."patternId",
+            gi."patternName",
+            gi."varientId",
+            gi."varientName",
+            gi."colorId",
+            gi."colorName",
+            gi."sizeId",
+            gi."sizeName",
+            sp."categoryId",
+            sp."subCategoryId",
+            c."categoryName",
+            sc."subCategoryName",
+            gi.cost AS "unitCost",
+            gi.total AS "totalAmount",
+            gi."profitPercent" AS "marginPercent",
+            gi.quantity,
+            br."refBranchName",
+            br."refBranchCode",
+            g."poNumber" AS "grnNumber",
+            gi."createdAt",
+            gi."createdBy"
+        FROM "PurchaseOrderManagement"."PurchaseOrderGRNItems" gi
+        LEFT JOIN public."Branches" br ON br."refBranchId" = gi."productBranchId"
+        LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderGRN" g ON g.id = gi."grnId"
+        LEFT JOIN public."SettingsProducts" sp ON sp.id = gi."productId"
+        LEFT JOIN public."Categories" c ON c."refCategoryid" = sp."categoryId"
+        LEFT JOIN public."SubCategories" sc ON sc."refSubCategoryId" = sp."subCategoryId"
+        WHERE gi."isDelete" = FALSE
+        AND gi."productBranchId" = 4                 -- <-- Only Branch 4
+        ORDER BY gi.id DESC;
+    `).Scan(&list).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infof("📦 POS inventory records found: %d", len(list))
+	return list, nil
+}
+
+func POSGetInventoryProductBySKUService(db *gorm.DB, sku string) (map[string]interface{}, error) {
+	log := logger.InitLogger()
+	log.Infof("📦 POS inventory by indiv SKU")
+
+	var product map[string]interface{}
+
+	err := db.Raw(`
+        SELECT 
+            gi.id,
+            gi.sku AS "barcode",
+            gi."productName",
+            gi."productId",
+            gi."designId",
+            gi."designName",
+            gi."patternId",
+            gi."patternName",
+            gi."varientId",
+            gi."varientName",
+            gi."colorId",
+            gi."colorName",
+            gi."sizeId",
+            gi."sizeName",
+            sp."categoryId",
+            sp."subCategoryId",
+            c."categoryName",
+            sc."subCategoryName",
+            gi.cost AS "unitCost",
+            gi.total AS "totalAmount",
+            gi."profitPercent" AS "marginPercent",
+            gi.quantity,
+            br."refBranchName",
+            br."refBranchCode",
+            g."poNumber" AS "grnNumber",
+            gi."createdAt",
+            gi."createdBy",
+            gi."productBranchId"
+        FROM "PurchaseOrderManagement"."PurchaseOrderGRNItems" gi
+        LEFT JOIN public."Branches" br ON br."refBranchId" = gi."productBranchId"
+        LEFT JOIN public."SettingsProducts" sp ON sp.id = gi."productId"
+        LEFT JOIN public."Categories" c ON c."refCategoryid" = sp."categoryId"
+        LEFT JOIN public."SubCategories" sc ON sc."refSubCategoryId" = sp."subCategoryId"
+        LEFT JOIN "PurchaseOrderManagement"."PurchaseOrderGRN" g ON g.id = gi."grnId"
+        WHERE gi."isDelete" = FALSE
+        AND gi.sku = ?
+        AND gi."productBranchId" = 4           -- <-- Branch check
+        LIMIT 1;
+    `, sku).Scan(&product).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	if product == nil {
+		return nil, fmt.Errorf("SKU %s not found in Branch 4", sku)
+	}
+
+	// ================================
+	// FETCH IMAGES FOR THIS SKU
+	// ================================
+	var images []struct {
+		FileName string `gorm:"column:file_name"`
+	}
+
+	err = db.Table(`"purchaseOrderMgmt"."ProductImages"`).
+		Select("file_name").
+		Where("extracted_sku = ? AND is_delete = false", sku).
+		Scan(&images).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed loading product images: %v", err)
+	}
+
+	type ImageResponse struct {
+		FileName string `json:"fileName"`
+		ViewURL  string `json:"viewURL"`
+	}
+
+	var imageResults []ImageResponse
+
+	for _, img := range images {
+		objectName := "bulk-images/" + img.FileName
+		viewURL, err := bulkImageUploadService.GetImageViewURL(objectName, 30)
+		if err == nil {
+			imageResults = append(imageResults, ImageResponse{
+				FileName: img.FileName,
+				ViewURL:  viewURL,
+			})
+		}
+	}
+
+	product["images"] = imageResults
+	return product, nil
+}
+
+type StockItem struct {
+	SKU string `json:"sku"`
+}
+
+func AcceptStockIntakeService(db *gorm.DB, toBranchId int, items []StockItem) (int, error) {
+
+	if len(items) == 0 {
+		return 0, errors.New("No SKUs provided")
+	}
+
+	// Extract SKUs as []string
+	skuList := make([]string, 0)
+	for _, item := range items {
+		skuList = append(skuList, item.SKU)
+	}
+
+	tx := db.Begin()
+	if tx.Error != nil {
+		return 0, tx.Error
+	}
+
+	// STEP 1: Mark items as received in Inventory_StockTransferItems
+	updateReceive := tx.Table(`"purchaseOrderMgmt"."Inventory_StockTransferItems"`).
+		Where("sku IN ?", skuList).
+		Updates(map[string]interface{}{
+			"is_received":       true,
+			"acceptance_status": "Accepted",
+		})
+
+	if updateReceive.Error != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("Failed updating stock transfer items: %v", updateReceive.Error)
+	}
+
+	// STEP 2: Update product branch in PurchaseOrderGRNItems
+	updateGRN := tx.Table(`"PurchaseOrderManagement"."PurchaseOrderGRNItems"`).
+		Where("sku IN ?", skuList).
+		Updates(map[string]interface{}{
+			"productBranchId": toBranchId,
+		})
+
+	if updateGRN.Error != nil {
+		tx.Rollback()
+		return 0, fmt.Errorf("Failed updating GRN items: %v", updateGRN.Error)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+
+	return int(updateReceive.RowsAffected), nil
 }

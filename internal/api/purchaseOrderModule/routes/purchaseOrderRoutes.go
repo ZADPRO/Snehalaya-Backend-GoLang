@@ -4,7 +4,6 @@ import (
 	purchaseOrderController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/controller"
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	"github.com/gin-gonic/gin"
-
 )
 
 func PurhcaseOrderRoutes(router *gin.Engine) {
@@ -49,6 +48,32 @@ func PurhcaseOrderRoutes(router *gin.Engine) {
 	route.POST("/getInventoryProductBySKU",
 		accesstoken.JWTMiddleware(),
 		purchaseOrderController.NewGetInventoryProductBySKUController(),
+	)
+
+	route.GET("/purchase-order/grn/items/:poId",
+		accesstoken.JWTMiddleware(),
+		purchaseOrderController.GetSinglePOGRNItemsController())
+
+	route.POST("/scanSKU",
+		accesstoken.JWTMiddleware(),
+		purchaseOrderController.ScanSKUController(),
+	)
+
+	// POS INVENTORY (Branch 4 fixed)
+	route.GET("/getPOSInventoryList",
+		accesstoken.JWTMiddleware(),
+		purchaseOrderController.POSGetInventoryListController(),
+	)
+
+	route.POST("/getPOSInventoryProductBySKU",
+		accesstoken.JWTMiddleware(),
+		purchaseOrderController.POSGetInventoryProductBySKUController(),
+	)
+
+	// STOCK INTAKE - ACCEPT ITEMS (NEW API)
+	route.POST("/acceptStockIntake",
+		accesstoken.JWTMiddleware(),
+		purchaseOrderController.NewAcceptStockIntakeController(),
 	)
 
 }

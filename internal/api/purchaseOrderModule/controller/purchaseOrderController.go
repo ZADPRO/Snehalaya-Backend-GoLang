@@ -11,7 +11,6 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
-
 )
 
 // CREATE PURCHASE ORDER
@@ -605,6 +604,196 @@ func NewGetInventoryProductBySKUController() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"status": true,
 			"data":   product,
+		})
+	}
+}
+
+func GetSinglePOGRNItemsController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		poId := c.Param("poId")
+		log.Infof("📥 Fetch GRN items for PO ID: %s", poId)
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		grnItems := purchaseOrderService.GetSinglePOGRNItemsService(dbConn, poId)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   grnItems,
+		})
+	}
+}
+
+type ScanSKURequest struct {
+	SKU string `json:"sku"`
+}
+
+func ScanSKUController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📥 ScanSKUController invoked")
+
+		// Extract user token details
+		idValue, idExists := c.Get("id")
+		roleIdValue, roleIdExists := c.Get("roleId")
+		branchIdValue, branchIdExists := c.Get("branchId")
+
+		if !idExists || !roleIdExists || !branchIdExists {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "Unauthorized",
+			})
+			return
+		}
+
+		// Read SKU from frontend
+		var req ScanSKURequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			log.Error("❌ Invalid payload: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": false,
+				"error":  "Invalid payload",
+			})
+			return
+		}
+
+		if req.SKU == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": false,
+				"error":  "SKU required",
+			})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		log.Infof("🔎 Scanning SKU: %s for branch %v", req.SKU, branchIdValue)
+
+		result, isFound, err := purchaseOrderService.ScanSKUService(dbConn, req.SKU, branchIdValue)
+
+		if err != nil {
+			log.Error("❌ DB Error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": false,
+				"error":  err.Error(),
+			})
+			return
+		}
+
+		// Create new refreshed token
+		token := accesstoken.CreateToken(idValue, roleIdValue, branchIdValue)
+
+		// Final response
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"isFound": isFound,
+			"data":    result,
+			"token":   token,
+		})
+	}
+}
+
+func POSGetInventoryListController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📦 POSGetInventoryListController invoked (branchId = 4)")
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		list, err := purchaseOrderService.POSGetInventoryListService(dbConn)
+		if err != nil {
+			log.Error("❌ Failed loading POS inventory list: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": false,
+				"error":  err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   list,
+		})
+	}
+}
+
+func POSGetInventoryProductBySKUController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		var payload struct {
+			SKU string `json:"sku" binding:"required"`
+		}
+
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": false,
+				"error":  "SKU is required",
+			})
+			return
+		}
+
+		log.Infof("🔍 POS: Fetching product for SKU: %s", payload.SKU)
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		product, err := purchaseOrderService.POSGetInventoryProductBySKUService(dbConn, payload.SKU)
+		if err != nil {
+			log.Error("❌ POS SKU fetch error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": false,
+				"error":  err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   product,
+		})
+	}
+}
+
+func NewAcceptStockIntakeController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var payload struct {
+			ToBranchId int                              `json:"toBranchId"`
+			Items      []purchaseOrderService.StockItem `json:"items"`
+		}
+
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status": false,
+				"error":  "Invalid request payload",
+			})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		updatedCount, err := purchaseOrderService.AcceptStockIntakeService(dbConn, payload.ToBranchId, payload.Items)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": false,
+				"error":  err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Stock intake processed successfully",
+			"updated": updatedCount,
 		})
 	}
 }

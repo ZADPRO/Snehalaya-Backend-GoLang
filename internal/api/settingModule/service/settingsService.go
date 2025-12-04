@@ -2234,6 +2234,7 @@ func GetAllRoundOffService(db *gorm.DB) []map[string]interface{} {
 		var prices []model.RoundOffPrice
 		err := db.Table("round_off_prices").
 			Where(`"round_off_id" = ? AND "isdelete" = ?`, s.Id, false).
+			Order(`"id" DESC`).
 			Find(&prices).Error
 
 		if err != nil {
@@ -2273,7 +2274,7 @@ func UpdateRoundOffService(db *gorm.DB, payload model.RoundOffPayload, roleName 
 
 	err := db.Table("round_off_prices").
 		Where(`"round_off_id" = ?`, payload.Id).
-		Update("isDelete", true).Error
+		Update("isdelete", true).Error
 
 	if err != nil {
 		log.Errorf("❌ Failed to soft delete old prices: %v", err)
@@ -2331,7 +2332,7 @@ func DeleteRoundOffService(db *gorm.DB, id string) error {
 	log.Info("🗑 Soft deleting round_off_settings")
 	err := db.Table("round_off_settings").
 		Where(`"id" = ?`, id).
-		Update("isDelete", true).Error
+		Update("isdelete", true).Error
 
 	if err != nil {
 		log.Errorf("❌ Failed to soft delete round_off_settings: %v", err)
@@ -2340,7 +2341,7 @@ func DeleteRoundOffService(db *gorm.DB, id string) error {
 	log.Info("🗑 Soft deleting round_off_prices")
 	err = db.Table("round_off_prices").
 		Where(`"round_off_id" = ?`, id).
-		Update("isDelete", true).Error
+		Update("isdelete", true).Error
 
 	if err != nil {
 		log.Errorf("❌ Failed to soft delete round_off_prices: %v", err)
@@ -2360,7 +2361,7 @@ func BulkDeleteRoundOffService(db *gorm.DB, ids []int) error {
 		log.Info("🗑 Soft deleting round_off_settings")
 		err := db.Table("round_off_settings").
 			Where(`"id" = ?`, id).
-			Update("isDelete", true).Error
+			Update("isdelete", true).Error
 
 		if err != nil {
 			log.Errorf("❌ Failed deleting settings for ID %d: %v", id, err)
@@ -2369,7 +2370,7 @@ func BulkDeleteRoundOffService(db *gorm.DB, ids []int) error {
 		log.Info("🗑 Soft deleting round_off_prices")
 		err = db.Table("round_off_prices").
 			Where(`"round_off_id" = ?`, id).
-			Update("isDelete", true).Error
+			Update("isdelete", true).Error
 
 		if err != nil {
 			log.Errorf("❌ Failed deleting prices for ID %d: %v", id, err)
