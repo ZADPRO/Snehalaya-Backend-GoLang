@@ -1,6 +1,7 @@
 package purchaseOrderService
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,9 @@ import (
 	purchaseOrderModel "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/model"
 	purchaseOrderQuery "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/purchaseOrderModule/query"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
+	shopifyConfig "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/shopify"
+	goshopify "github.com/bold-commerce/go-shopify/v4"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -1616,7 +1620,6 @@ func AcceptStockIntakeService(db *gorm.DB, toBranchId int, items []StockItem) (i
 		return 0, errors.New("No SKUs provided")
 	}
 
-	// Extract SKUs as []string
 	skuList := make([]string, 0)
 	for _, item := range items {
 		skuList = append(skuList, item.SKU)
@@ -1640,7 +1643,7 @@ func AcceptStockIntakeService(db *gorm.DB, toBranchId int, items []StockItem) (i
 		return 0, fmt.Errorf("Failed updating stock transfer items: %v", updateReceive.Error)
 	}
 
-	// STEP 2: Update product branch in PurchaseOrderGRNItems
+	// STEP 2: Update branch
 	updateGRN := tx.Table(`"PurchaseOrderManagement"."PurchaseOrderGRNItems"`).
 		Where("sku IN ?", skuList).
 		Updates(map[string]interface{}{
@@ -1652,9 +1655,108 @@ func AcceptStockIntakeService(db *gorm.DB, toBranchId int, items []StockItem) (i
 		return 0, fmt.Errorf("Failed updating GRN items: %v", updateGRN.Error)
 	}
 
+	// STEP 3: If branch == 4 → PUSH TO SHOPIFY
+	if toBranchId == 4 {
+		for _, sku := range skuList {
+
+			var product map[string]interface{}
+			err := db.Table(`"PurchaseOrderManagement"."PurchaseOrderGRNItems"`).
+				Where("sku = ?", sku).
+				First(&product).Error
+
+			if err != nil {
+				fmt.Println("⚠️ Product fetch failed for SKU:", sku)
+				continue
+			}
+
+			// Create Shopify product
+			err = PushProductToShopify(product)
+			if err != nil {
+				fmt.Println("⚠️ Shopify push failed for SKU:", sku, " → ", err)
+			} else {
+				fmt.Println("✅ Shopify push success for SKU:", sku)
+			}
+		}
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
 	}
 
 	return int(updateReceive.RowsAffected), nil
+}
+
+func PushProductToShopify(p map[string]interface{}) error {
+	ctx := context.Background()
+	client := shopifyConfig.ShopifyClient
+
+	if client == nil {
+		return fmt.Errorf("shopify client not initialized")
+	}
+
+	// Convert price string to decimal
+	priceString := fmt.Sprintf("%v", p["unitCost"])
+	priceDecimal, err := decimal.NewFromString(priceString)
+	if err != nil {
+		return fmt.Errorf("invalid price format: %v", err)
+	}
+
+	// Build Shopify product
+	product := goshopify.Product{
+		Title:       fmt.Sprintf("%v", p["productName"]),
+		BodyHTML:    "<strong>Imported from Snehalaya ERP</strong>",
+		Vendor:      "Snehalayaa",
+		ProductType: fmt.Sprintf("%v", p["categoryName"]),
+		Tags:        fmt.Sprintf("%v,%v,%v", p["categoryName"], p["colorName"], p["sizeName"]),
+		Status:      "draft",
+
+		Variants: []goshopify.Variant{
+			{
+				Option1:             "Default",
+				Sku:                 fmt.Sprintf("%v", p["barcode"]),
+				Price:               &priceDecimal, // ✅ FIXED — pointer required
+				InventoryPolicy:     "deny",
+				InventoryManagement: "shopify",
+			},
+		},
+	}
+
+	// Optional image
+	if img, ok := p["imageURL"]; ok && img != "" {
+		product.Images = []goshopify.Image{
+			{Src: fmt.Sprintf("%v", img)},
+		}
+	}
+
+	// Create product in Shopify
+	createdProduct, err := client.Product.Create(ctx, product)
+	if err != nil {
+		return fmt.Errorf("Shopify create product error: %v", err)
+	}
+
+	fmt.Println("🎉 Shopify product created:", createdProduct.Id)
+
+	// Get Shopify locations
+	locations, err := client.Location.List(ctx, nil)
+	if err != nil || len(locations) == 0 {
+		return fmt.Errorf("failed to fetch Shopify locations")
+	}
+
+	locationID := locations[0].Id
+
+	// Inventory = 1 by default
+	for _, v := range createdProduct.Variants {
+		adjust := goshopify.InventoryLevelAdjustOptions{
+			InventoryItemId: v.InventoryItemId,
+			LocationId:      locationID,
+			Adjust:          1,
+		}
+
+		_, err = client.InventoryLevel.Adjust(ctx, adjust)
+		if err != nil {
+			fmt.Println("⚠️ Inventory adjust failed:", err)
+		}
+	}
+
+	return nil
 }
