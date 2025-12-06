@@ -10,7 +10,6 @@ import (
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
-
 )
 
 func CreatePOProductController() gin.HandlerFunc {
@@ -609,5 +608,114 @@ func GetStockTransferItemsController() gin.HandlerFunc {
 			"status": true,
 			"data":   data,
 		})
+	}
+}
+
+// BUNDLE IN AND OUT
+func CreateBundleInwardController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📦 CreateBundleInwardController invoked")
+
+		idValue, idOk := c.Get("id")
+		roleValue, roleOk := c.Get("roleId")
+		branchValue, branchOk := c.Get("branchId")
+
+		if !idOk || !roleOk || !branchOk {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Unauthorized"})
+			return
+		}
+
+		var payload productModel.BundleInwardPayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			log.Error("❌ Invalid payload: " + err.Error())
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid input"})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		log.Infof("📝 Payload received: %+v", payload)
+
+		err := productService.CreateBundleInwardService(dbConn, &payload)
+		if err != nil {
+			log.Error("❌ Service error: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": "Failed to create inward"})
+			return
+		}
+
+		token := accesstoken.CreateToken(idValue, roleValue, branchValue)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":  true,
+			"message": "Bundle inward created successfully",
+			"token":   token,
+		})
+	}
+}
+
+func GetAllBundleInwardsController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("📥 GetAllBundleInwardsController invoked")
+
+		id, idOk := c.Get("id")
+		role, roleOk := c.Get("roleId")
+		branch, branchOk := c.Get("branchId")
+
+		if !idOk || !roleOk || !branchOk {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Unauthorized"})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		data := productService.GetAllBundleInwardsService(dbConn)
+
+		token := accesstoken.CreateToken(id, role, branch)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   data,
+			"token":  token,
+		})
+	}
+}
+
+func UpdateBundleInwardController() gin.HandlerFunc {
+	log := logger.InitLogger()
+	return func(c *gin.Context) {
+		log.Info("🛠 UpdateBundleInwardController invoked")
+
+		id, idOk := c.Get("id")
+		role, roleOk := c.Get("roleId")
+		branch, branchOk := c.Get("branchId")
+
+		if !idOk || !roleOk || !branchOk {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": false, "message": "Unauthorized"})
+			return
+		}
+
+		var payload productModel.BundleInwardPayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"status": false, "message": "Invalid input"})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		err := productService.UpdateBundleInwardService(dbConn, &payload)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": false, "message": err.Error()})
+			return
+		}
+
+		token := accesstoken.CreateToken(id, role, branch)
+
+		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Updated successfully", "token": token})
 	}
 }

@@ -860,3 +860,179 @@ func GetStockTransferItems(db *gorm.DB, transferId int) ([]map[string]interface{
 
 	return results, nil
 }
+
+// BUNDLE IN OUT
+func CreateBundleInwardService(db *gorm.DB, payload *productModel.BundleInwardPayload) error {
+	log := logger.InitLogger()
+	log.Info("🛠 CreateBundleInwardService invoked")
+
+	inward := map[string]interface{}{
+		"po_id":            payload.PoId,
+		"po_date":          payload.PoDetails.PoDate,
+		"supplier_id":      payload.PoDetails.SupplierId,
+		"location":         payload.PoDetails.Location,
+		"po_value":         payload.PoDetails.PoValue,
+		"receiving_type":   payload.PoDetails.ReceivingType,
+		"remarks":          payload.PoDetails.Remarks,
+		"po_qty":           payload.PoDetails.PoQty,
+		"box_count":        payload.PoDetails.BoxCount,
+		"grn_date":         payload.GrnDetails.GrnDate,
+		"grn_status":       payload.GrnDetails.GrnStatus,
+		"grn_value":        payload.GrnDetails.GrnValue,
+		"bundle_status":    payload.GrnDetails.BundleStatus,
+		"transporter_name": payload.GrnDetails.Transporter,
+		"created_date":     payload.GrnDetails.CreatedDate,
+		"created_at":       time.Now().Format("2006-01-02 15:04:05"),
+	}
+
+	err := db.Table(`"BundleInOut"."bundle_inwards"`).Create(inward).Error
+	if err != nil {
+		return err
+	}
+
+	// get inserted inward id
+	var inwardId int
+	db.Raw(`SELECT id FROM "BundleInOut".bundle_inwards ORDER BY id DESC LIMIT 1`).Scan(&inwardId)
+
+	// insert bills
+	for _, b := range payload.Bills {
+		bill := map[string]interface{}{
+			"inward_id":     inwardId,
+			"bill_date":     b.BillDate,
+			"bill_no":       b.BillNo,
+			"bill_qty":      b.BillQty,
+			"taxable_value": b.TaxableValue,
+			"tax_percent":   b.TaxPercent,
+			"tax_amount":    b.TaxAmount,
+			"invoice_value": b.InvoiceValue,
+			"created_at":    time.Now().Format("2006-01-02 15:04:05"),
+		}
+		db.Table(`"BundleInOut"."bundle_inward_bills"`).Create(bill)
+	}
+
+	return nil
+}
+
+func GetAllBundleInwardsService(db *gorm.DB) []map[string]interface{} {
+	var results []map[string]interface{}
+
+	inwardRows, err := db.Raw(`
+        SELECT
+            bin.id AS inward_id,
+            bin.po_id,
+            bin.po_date,
+            bin.supplier_id,
+            bin.location,
+            bin.po_value,
+            bin.receiving_type,
+            bin.remarks,
+            bin.po_qty,
+            bin.box_count,
+            bin.grn_date,
+            bin.grn_status,
+            bin.grn_value,
+            bin.bundle_status,
+            bin.transporter_name,
+            bin.created_date,
+            bin.created_at,
+            bin.updated_at,
+
+            po.id AS po_record_id,
+            po.po_number,
+            po.total
+
+        FROM "BundleInOut"."bundle_inwards" bin
+        JOIN "PurchaseOrderManagement"."PurchaseOrders" po
+            ON po.id = bin.po_id
+        ORDER BY bin.id DESC
+    `).Rows()
+
+	if err != nil {
+		fmt.Println("❌ Error fetching bundle_inwards:", err)
+		return results
+	}
+	defer inwardRows.Close()
+
+	for inwardRows.Next() {
+		inward := make(map[string]interface{})
+		db.ScanRows(inwardRows, &inward)
+
+		inwardID := inward["inward_id"] // ← Correct ID reference
+		if inwardID == nil {
+			fmt.Println("❌ inward_id is nil, row:", inward)
+			continue
+		}
+
+		// ===== Fetch Bills for this inward =====
+		var bills []map[string]interface{}
+		billRows, err := db.Raw(`
+            SELECT *
+            FROM "BundleInOut"."bundle_inward_bills"
+            WHERE inward_id = ?
+            ORDER BY id ASC
+        `, inwardID).Rows()
+
+		if err == nil {
+			for billRows.Next() {
+				bill := make(map[string]interface{})
+				db.ScanRows(billRows, &bill)
+				bills = append(bills, bill)
+			}
+			billRows.Close()
+		}
+
+		inward["bills"] = bills
+		results = append(results, inward)
+	}
+
+	return results
+}
+
+func UpdateBundleInwardService(db *gorm.DB, payload *productModel.BundleInwardPayload) error {
+	inwardData := map[string]interface{}{
+		"po_date":          payload.PoDetails.PoDate,
+		"supplier_id":      payload.PoDetails.SupplierId,
+		"location":         payload.PoDetails.Location,
+		"po_value":         payload.PoDetails.PoValue,
+		"receiving_type":   payload.PoDetails.ReceivingType,
+		"remarks":          payload.PoDetails.Remarks,
+		"po_qty":           payload.PoDetails.PoQty,
+		"box_count":        payload.PoDetails.BoxCount,
+		"grn_date":         payload.GrnDetails.GrnDate,
+		"grn_status":       payload.GrnDetails.GrnStatus,
+		"grn_value":        payload.GrnDetails.GrnValue,
+		"bundle_status":    payload.GrnDetails.BundleStatus,
+		"transporter_name": payload.GrnDetails.Transporter,
+		"created_date":     payload.GrnDetails.CreatedDate,
+		"updated_at":       time.Now().Format("2006-01-02 15:04:05"),
+	}
+
+	err := db.Table(`"BundleInOut"."bundle_inwards"`).
+		Where("po_id = ?", payload.PoId).
+		Updates(inwardData).Error
+
+	if err != nil {
+		return err
+	}
+
+	// Delete old bills
+	db.Table(`"BundleInOut"."bundle_inward_bills"`).Where("inward_id = ?", payload.PoId).Delete(nil)
+
+	// Insert new bills
+	for _, b := range payload.Bills {
+		bill := map[string]interface{}{
+			"inward_id":     payload.PoId,
+			"bill_date":     b.BillDate,
+			"bill_no":       b.BillNo,
+			"bill_qty":      b.BillQty,
+			"taxable_value": b.TaxableValue,
+			"tax_percent":   b.TaxPercent,
+			"tax_amount":    b.TaxAmount,
+			"invoice_value": b.InvoiceValue,
+			"created_at":    time.Now().Format("2006-01-02 15:04:05"),
+		}
+		db.Table(`"BundleInOut"."bundle_inward_bills"`).Create(bill)
+	}
+
+	return nil
+}

@@ -44,4 +44,8 @@ func ProductManagementRoutes(router *gin.Engine) {
 
 	// route.GET("/stock-transfer/:id", accesstoken.JWTMiddleware(), productController.GetStockTransferByIDController())
 
+	route.POST("/createBundle", accesstoken.JWTMiddleware(), productController.CreateBundleInwardController())
+	route.GET("/getBundle", accesstoken.JWTMiddleware(), productController.GetAllBundleInwardsController())
+	route.PUT("/updateBundle", accesstoken.JWTMiddleware(), productController.UpdateBundleInwardController())
+
 }

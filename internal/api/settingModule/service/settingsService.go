@@ -2234,7 +2234,7 @@ func GetAllRoundOffService(db *gorm.DB) []map[string]interface{} {
 		var prices []model.RoundOffPrice
 		err := db.Table("round_off_prices").
 			Where(`"round_off_id" = ? AND "isdelete" = ?`, s.Id, false).
-			Order(`"id" DESC`).
+			Order(`CAST("price" AS INTEGER) ASC`).
 			Find(&prices).Error
 
 		if err != nil {

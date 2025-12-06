@@ -215,3 +215,40 @@ type NewStockTransferRequest struct {
 		SKU       string `json:"sku"`
 	} `json:"items"`
 }
+
+type BundleInwardPayload struct {
+	PoId       int        `json:"poId"`
+	PoDetails  PoDetail   `json:"poDetails"`
+	Bills      []BillItem `json:"bills"`
+	GrnDetails GrnDetail  `json:"grnDetails"`
+}
+
+type PoDetail struct {
+	PoDate        string `json:"poDate"`
+	SupplierId    int    `json:"supplierId"`
+	Location      string `json:"location"`
+	PoValue       string `json:"poValue"`
+	ReceivingType string `json:"receivingType"`
+	Remarks       string `json:"remarks"`
+	PoQty         string `json:"poQty"`
+	BoxCount      string `json:"boxCount"`
+}
+
+type BillItem struct {
+	BillDate     string `json:"billDate"`
+	BillNo       string `json:"billNo"`
+	BillQty      string `json:"billQty"`
+	TaxableValue string `json:"taxableValue"`
+	TaxPercent   string `json:"taxPercent"`
+	TaxAmount    string `json:"taxAmount"`
+	InvoiceValue string `json:"invoiceValue"`
+}
+
+type GrnDetail struct {
+	GrnDate      string `json:"grnDate"`
+	GrnStatus    string `json:"grnStatus"`
+	GrnValue     string `json:"grnValue"`
+	BundleStatus string `json:"bundleStatus"`
+	Transporter  string `json:"transporterName"`
+	CreatedDate  string `json:"createdDate"`
+}

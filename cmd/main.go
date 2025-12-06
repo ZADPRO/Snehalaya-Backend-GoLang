@@ -26,6 +26,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+
 )
 
 func main() {
@@ -38,7 +39,10 @@ func main() {
 	r.SetTrustedProxies(nil)
 
 	// INIT DB
-	db.InitDB()
+	globalDB, _ := db.InitDB()
+	if globalDB == nil {
+		fmt.Println("⚠️ Warning: Server started WITHOUT database connection.")
+	}
 
 	//MIN IO INIT
 	minioConfig.InitMinio()
