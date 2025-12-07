@@ -217,6 +217,7 @@ type NewStockTransferRequest struct {
 }
 
 type BundleInwardPayload struct {
+	Id         int        `json:"id"`
 	PoId       int        `json:"poId"`
 	PoDetails  PoDetail   `json:"poDetails"`
 	Bills      []BillItem `json:"bills"`

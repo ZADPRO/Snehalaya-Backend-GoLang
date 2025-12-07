@@ -17,6 +17,7 @@ import (
 	goshopify "github.com/bold-commerce/go-shopify/v4"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+
 )
 
 func CreatePurchaseOrderService(db *gorm.DB, payload *purchaseOrderModel.CreatePORequest, createdBy string) error {
@@ -654,7 +655,7 @@ func NewGetAllPurchaseOrdersService(db *gorm.DB) []map[string]interface{} {
 			po.branchid,
 			b."refBranchId",
 			b."refBranchCode",
-
+      		s."supplierCity",
 			po."taxEnabled",
 			po."taxRate",
 			po."taxAmount",
@@ -709,6 +710,7 @@ func NewGetAllPurchaseOrdersService(db *gorm.DB) []map[string]interface{} {
 			po."supplierId",
 			s."supplierName",
 			s."creditedDays",
+      		s."supplierCity",
 			po.branchid,
 			b."refBranchId",
 			b."refBranchCode",
@@ -723,7 +725,6 @@ func NewGetAllPurchaseOrdersService(db *gorm.DB) []map[string]interface{} {
 			grni.total_received     -- IMPORTANT new addition
 
 		ORDER BY po.id DESC;
-
 
 	`).Scan(&list)
 

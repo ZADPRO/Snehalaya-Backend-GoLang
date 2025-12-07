@@ -10,6 +10,7 @@ import (
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
+
 )
 
 func CreatePOProductController() gin.HandlerFunc {
@@ -717,5 +718,49 @@ func UpdateBundleInwardController() gin.HandlerFunc {
 		token := accesstoken.CreateToken(id, role, branch)
 
 		c.JSON(http.StatusOK, gin.H{"status": true, "message": "Updated successfully", "token": token})
+	}
+}
+
+func GetBundleInwardsByPOController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📥 GetBundleInwardsByPOController invoked")
+
+		id, idOk := c.Get("id")
+		role, roleOk := c.Get("roleId")
+		branch, branchOk := c.Get("branchId")
+
+		if !idOk || !roleOk || !branchOk {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"status":  false,
+				"message": "Unauthorized",
+			})
+			return
+		}
+
+		// ✅ Get PO ID from URL PARAM
+		poID := c.Param("po_id")
+		if poID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "po_id is required",
+			})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		// ✅ Call NEW service
+		data := productService.GetBundleInwardsByPOService(dbConn, poID)
+
+		token := accesstoken.CreateToken(id, role, branch)
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   data,
+			"token":  token,
+		})
 	}
 }

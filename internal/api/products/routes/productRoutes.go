@@ -48,4 +48,10 @@ func ProductManagementRoutes(router *gin.Engine) {
 	route.GET("/getBundle", accesstoken.JWTMiddleware(), productController.GetAllBundleInwardsController())
 	route.PUT("/updateBundle", accesstoken.JWTMiddleware(), productController.UpdateBundleInwardController())
 
+	route.GET(
+		"/getBundleByPO/:po_id",
+		accesstoken.JWTMiddleware(),
+		productController.GetBundleInwardsByPOController(),
+	)
+
 }
