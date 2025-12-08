@@ -10,7 +10,6 @@ import (
 	accesstoken "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/AccessToken"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
-
 )
 
 func CreatePOProductController() gin.HandlerFunc {
@@ -530,6 +529,48 @@ func CheckSKUInGRNController() gin.HandlerFunc {
 	}
 }
 
+type CheckSKUOnlyRequest struct {
+	SKU string `json:"sku"`
+}
+
+func CheckSKUOnlyInGRNController() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		var req CheckSKUOnlyRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid request: " + err.Error(),
+			})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		product, isPresent, branchName, err := productService.GetSKUOnlyFromGRN(
+			dbConn,
+			req.SKU,
+		)
+
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"status":    false,
+				"message":   err.Error(),
+				"isPresent": false,
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status":     true,
+			"isPresent":  isPresent,
+			"branchName": branchName,
+			"data":       product,
+		})
+	}
+}
+
 func StockTransferController() gin.HandlerFunc {
 	return func(c *gin.Context) {
 
@@ -761,6 +802,102 @@ func GetBundleInwardsByPOController() gin.HandlerFunc {
 			"status": true,
 			"data":   data,
 			"token":  token,
+		})
+	}
+}
+
+func CreateDebitNoteController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+
+		var payload productService.DebitNotePayload
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		result, err := productService.CreateDebitNoteService(dbConn, payload)
+		if err != nil {
+			log.Error(err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   result,
+		})
+	}
+}
+
+func GetDebitNoteListController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		result, err := productService.GetDebitNoteListService(dbConn)
+		if err != nil {
+			log.Error(err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   result,
+		})
+	}
+}
+
+func GetDebitNoteByIdController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+
+		debitNoteId, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"status":  false,
+				"message": "Invalid debit note id",
+			})
+			return
+		}
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		header, items, err := productService.GetDebitNoteByIdService(dbConn, debitNoteId)
+		if err != nil {
+			log.Error(err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status":  false,
+				"message": err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data": gin.H{
+				"header": header,
+				"items":  items,
+			},
 		})
 	}
 }

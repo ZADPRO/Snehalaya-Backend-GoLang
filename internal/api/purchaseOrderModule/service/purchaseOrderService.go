@@ -1112,6 +1112,7 @@ func NewGetInventoryListService(db *gorm.DB) ([]map[string]interface{}, error) {
 		LEFT JOIN public."SubCategories" sc ON sc."refSubCategoryId" = sp."subCategoryId"
 		WHERE
 		gi."isDelete" = FALSE
+		AND gi.quantity > 0
 		ORDER BY
 		gi.id DESC;
 	`).Scan(&list).Error

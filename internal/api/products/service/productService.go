@@ -650,6 +650,36 @@ func GetSKUFromGRN(db *gorm.DB, branchID int, sku string) (map[string]interface{
 	return otherProduct, false, otherProduct["refBranchName"].(string), nil
 }
 
+func GetSKUOnlyFromGRN(db *gorm.DB, sku string) (map[string]interface{}, bool, string, error) {
+
+	product := make(map[string]interface{})
+
+	err := db.Raw(`
+      SELECT
+			g.*,
+			sp.*,
+			b."refBranchName",
+			s."supplierName",
+			s."supplierId"
+			FROM
+			"PurchaseOrderManagement"."PurchaseOrderGRNItems" g
+			JOIN public."SettingsProducts" sp ON g."productId" = sp."id"
+			JOIN public."Branches" b ON g."productBranchId" = b."refBranchId"
+			JOIN public."Supplier" s ON g."supplierId" = s."supplierId"
+			WHERE
+			g.sku = $1
+			AND g."isDelete" = false
+			LIMIT
+			1
+    `, sku).Scan(&product).Error
+
+	if err != nil || product["sku"] == nil {
+		return nil, false, "", fmt.Errorf("SKU not found in GRN")
+	}
+
+	return product, true, product["refBranchName"].(string), nil
+}
+
 type StockTransferItem struct {
 	GRNItemId int    `json:"grnItemId"`
 	ProductId int    `json:"productId"`
@@ -1137,4 +1167,211 @@ func GetBundleInwardsByPOService(db *gorm.DB, poID string) []map[string]interfac
 	}
 
 	return results
+}
+
+type DebitNoteItem struct {
+	SKU             string `json:"sku"`
+	ProductId       int    `json:"productId"`
+	PurchaseOrderId int    `json:"purchaseOrderId"`
+	Quantity        int    `json:"quantity"`
+}
+
+type DebitNotePayload struct {
+	PoId  int             `json:"poId"`
+	Items []DebitNoteItem `json:"items"`
+}
+
+func CreateDebitNoteService(db *gorm.DB, payload DebitNotePayload) (map[string]interface{}, error) {
+
+	log := logger.InitLogger()
+	now := time.Now().Format("2006-01-02 15:04:05")
+
+	log.Info("\n\n\nCreateDebitNoteService")
+	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+
+	// ✅ 1️⃣ GET SUPPLIER ID FROM FIRST SKU
+	var supplierId int
+	err := tx.Raw(`
+		SELECT "supplierId"
+		FROM "PurchaseOrderManagement"."PurchaseOrderGRNItems"
+		WHERE sku = ?
+		LIMIT 1
+	`, payload.Items[0].SKU).Scan(&supplierId).Error
+
+	if err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("supplier not found for SKU")
+	}
+
+	// ✅ 2️⃣ INSERT DEBIT NOTE HEADER
+	var debitNoteId int
+	err = tx.Raw(`
+		INSERT INTO "PurchaseOrderManagement"."DebitNote"
+		(
+			"poId",
+			"supplierId",
+			"totalQuantity",
+			"createdAt",
+			"createdBy"
+		)
+		VALUES (?, ?, ?, ?, ?)
+		RETURNING id
+	`,
+		payload.PoId,
+		supplierId,
+		fmt.Sprintf("%d", len(payload.Items)),
+		now,
+		"admin",
+	).Scan(&debitNoteId).Error
+
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// ✅ 3️⃣ INSERT SKU ITEMS
+	for _, item := range payload.Items {
+
+		err = tx.Exec(`
+			INSERT INTO "PurchaseOrderManagement"."DebitNoteItems"
+			(
+				"debitNoteId",
+				"poId",
+				"supplierId",
+				"sku",
+				"productId",
+				"purchaseOrderId",
+				quantity,
+				"createdAt",
+				"createdBy"
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`,
+			debitNoteId,
+			payload.PoId,
+			supplierId,
+			item.SKU,
+			item.ProductId,
+			item.PurchaseOrderId,
+			item.Quantity,
+			now,
+			"admin",
+		).Error
+
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	// ✅ 4️⃣ UPDATE GRN ITEMS (quantity = 0 , productBranchId = NULL)
+	var skuList []string
+	for _, item := range payload.Items {
+		skuList = append(skuList, item.SKU)
+	}
+
+	err = tx.Exec(`
+		UPDATE "PurchaseOrderManagement"."PurchaseOrderGRNItems"
+		SET 
+			quantity = 0,
+			"productBranchId" = NULL
+		WHERE sku IN ?`, skuList).Error
+
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// ✅ ✅ COMMIT
+	tx.Commit()
+
+	return map[string]interface{}{
+		"debitNoteId": debitNoteId,
+		"totalItems":  len(payload.Items),
+	}, nil
+}
+
+func GetDebitNoteListService(db *gorm.DB) ([]map[string]interface{}, error) {
+
+	var result []map[string]interface{}
+
+	err := db.Raw(`
+		SELECT
+  dn.id,
+  dn."poId",
+  po.po_number,
+  po.branchid,
+  br."refBranchName",
+  dn."supplierId",
+  s."supplierName",
+  dn."totalQuantity",
+  dn."createdAt",
+  dn."createdBy"
+FROM
+  "PurchaseOrderManagement"."DebitNote" dn
+  JOIN public."Supplier" s ON s."supplierId" = dn."supplierId"
+  JOIN "PurchaseOrderManagement"."PurchaseOrders" po ON po.id = dn."poId"
+  JOIN public."Branches" br ON br."refBranchId" = po.branchid
+ORDER BY
+  dn.id DESC
+	`).Scan(&result).Error
+
+	return result, err
+}
+
+func GetDebitNoteByIdService(
+	db *gorm.DB,
+	debitNoteId int,
+) (map[string]interface{}, []map[string]interface{}, error) {
+
+	var header map[string]interface{}
+	var items []map[string]interface{}
+
+	// ✅ HEADER
+	err := db.Raw(`
+		SELECT 
+			dn.id,
+			dn."poId",
+			dn."supplierId",
+			s."supplierName",
+			dn."totalQuantity",
+			dn."createdAt",
+			dn."createdBy"
+		FROM "PurchaseOrderManagement"."DebitNote" dn
+		JOIN public."Supplier" s 
+			ON s."supplierId" = dn."supplierId"
+		WHERE dn.id = ?
+	`, debitNoteId).Scan(&header).Error
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// ✅ ITEMS
+	err = db.Raw(`
+		SELECT 
+			di.id,
+			di."debitNoteId",
+			di."poId",
+			di."supplierId",
+			s."supplierName",
+
+			di.sku,
+			di."productId",
+			di."purchaseOrderId",
+
+			di.quantity,
+			di."createdAt",
+			di."createdBy"
+		FROM "PurchaseOrderManagement"."DebitNoteItems" di
+		JOIN public."Supplier" s 
+			ON s."supplierId" = di."supplierId"
+		WHERE di."debitNoteId" = ?
+		ORDER BY di.id ASC
+	`, debitNoteId).Scan(&items).Error
+
+	return header, items, err
 }

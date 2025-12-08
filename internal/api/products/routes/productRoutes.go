@@ -36,6 +36,12 @@ func ProductManagementRoutes(router *gin.Engine) {
 		productController.CheckSKUInGRNController(),
 	)
 
+	route.POST(
+		"/check-sku-only-grn",
+		accesstoken.JWTMiddleware(),
+		productController.CheckSKUOnlyInGRNController(),
+	)
+
 	route.POST("/new-stock-transfer", accesstoken.JWTMiddleware(), productController.StockTransferController())
 
 	route.GET("/stock-transfer/list", accesstoken.JWTMiddleware(), productController.GetStockTransferMasterController())
@@ -52,6 +58,26 @@ func ProductManagementRoutes(router *gin.Engine) {
 		"/getBundleByPO/:po_id",
 		accesstoken.JWTMiddleware(),
 		productController.GetBundleInwardsByPOController(),
+	)
+
+	route.POST(
+		"/createDebitNote",
+		accesstoken.JWTMiddleware(),
+		productController.CreateDebitNoteController(),
+	)
+
+	// routes/debitNoteRoutes.go
+
+	route.GET(
+		"/getDebitNoteList",
+		accesstoken.JWTMiddleware(),
+		productController.GetDebitNoteListController(),
+	)
+
+	route.GET(
+		"/getDebitNoteById/:id",
+		accesstoken.JWTMiddleware(),
+		productController.GetDebitNoteByIdController(),
 	)
 
 }
