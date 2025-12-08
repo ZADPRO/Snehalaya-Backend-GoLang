@@ -3,6 +3,7 @@ package imageUploadRoutes
 import (
 	imageUploadController "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/api/productsImageUpload/controller"
 	"github.com/gin-gonic/gin"
+
 )
 
 func ImageUploadRoutes(router *gin.Engine) {
@@ -13,5 +14,8 @@ func ImageUploadRoutes(router *gin.Engine) {
 	route.GET("/env", imageUploadController.GetEnvVariables)
 
 	route.POST("/generateURL", imageUploadController.GetPresignedURL)
+
+	route.POST("/generateURLForPDF", imageUploadController.GeneratePDFPresignedURL)
+	route.GET("/getPDF/:filename/:expireMins", imageUploadController.GetPDFFileURL)
 
 }

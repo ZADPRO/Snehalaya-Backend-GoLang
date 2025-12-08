@@ -98,3 +98,51 @@ func GetPresignedURL(c *gin.Context) {
 		"fileName":  filename,
 	})
 }
+
+type PDFPresignRequest struct {
+	ExpireMins int `json:"expireMins"`
+}
+
+func GeneratePDFPresignedURL(c *gin.Context) {
+	var req PDFPresignRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	expireMins := req.ExpireMins
+	if expireMins <= 0 {
+		expireMins = 10
+	}
+
+	uploadURL, fileName, err := imageUploadService.GeneratePDFPresignedURL(expireMins)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF upload URL"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"uploadUrl": uploadURL,
+		"fileName":  fileName,
+	})
+}
+
+func GetPDFFileURL(c *gin.Context) {
+	fileName := c.Param("filename")
+	expireStr := c.Param("expireMins")
+
+	expireMins, err := strconv.Atoi(expireStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid expiry"})
+		return
+	}
+
+	fileURL, err := imageUploadService.GetPDFFileURL(fileName, expireMins)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate PDF file URL"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"fileUrl": fileURL})
+}

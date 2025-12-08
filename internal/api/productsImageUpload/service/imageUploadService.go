@@ -131,3 +131,62 @@ func GeneratePresignedURL(extension string) (string, string, error) {
 
 	return presignedURL.String(), filename, nil
 }
+
+// ✅ Generate Presigned PUT URL for PDF upload only
+func GeneratePDFPresignedURL(expireMins int) (string, string, error) {
+	if config.MinioClient == nil {
+		log.Println("❌ MinIO client is nil")
+		return "", "", fmt.Errorf("MinIO client not initialized")
+	}
+
+	bucket := os.Getenv("MINIO_BUCKET")
+
+	timestamp := time.Now().Unix()
+	randomPart := rand.Intn(10000)
+
+	filename := fmt.Sprintf("BILL-%d-%d.pdf", timestamp, randomPart)
+	objectName := "billInvoice/" + filename
+
+	log.Println("🔄 Generating PDF pre-signed URL for:", objectName)
+
+	presignedURL, err := config.MinioClient.PresignedPutObject(
+		context.Background(),
+		bucket,
+		objectName,
+		time.Duration(expireMins)*time.Minute,
+	)
+	if err != nil {
+		log.Printf("❌ Failed to generate PDF pre-signed URL: %v", err)
+		return "", "", err
+	}
+
+	return presignedURL.String(), filename, nil
+}
+
+// ✅ Generate Presigned GET URL for PDF view/download
+func GetPDFFileURL(fileName string, expireMins int) (string, error) {
+	if config.MinioClient == nil {
+		log.Println("❌ MinIO client is nil")
+		return "", fmt.Errorf("MinIO client not initialized")
+	}
+
+	bucket := os.Getenv("MINIO_BUCKET")
+	objectName := "billInvoice/" + fileName
+
+	reqParams := url.Values{}
+	expiry := time.Duration(expireMins) * time.Minute
+
+	fileURL, err := config.MinioClient.PresignedGetObject(
+		context.Background(),
+		bucket,
+		objectName,
+		expiry,
+		reqParams,
+	)
+	if err != nil {
+		log.Printf("❌ Failed to generate PDF GET URL: %v", err)
+		return "", err
+	}
+
+	return fileURL.String(), nil
+}

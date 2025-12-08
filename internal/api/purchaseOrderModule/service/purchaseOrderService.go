@@ -760,16 +760,31 @@ func NewGetSinglePurchaseOrderService(db *gorm.DB, poId int) (map[string]interfa
 	return header, nil
 }
 
+type GRNPayload struct {
+	PoId       int       `json:"poId"`
+	SupplierId int       `json:"supplierId"`
+	BranchId   int       `json:"branchId"`
+	TaxRate    any       `json:"taxRate"`
+	TaxAmount  any       `json:"taxAmount"`
+	Items      []GRNItem `json:"items"`
+}
+
 type GRNItem struct {
-	SNo           int     `json:"sNo"`
-	LineNo        string  `json:"lineNo"`
-	RefNo         string  `json:"refNo"`
-	Cost          float64 `json:"cost"`
-	ProfitPercent float64 `json:"profitPercent"`
-	Total         float64 `json:"total"`
+	SNo              int     `json:"sNo"`
+	LineNo           string  `json:"lineNo"`
+	RefNo            string  `json:"refNo"`
+	Cost             float64 `json:"cost"`
+	ProfitPercent    float64 `json:"profitPercent"`
+	Total            float64 `json:"total"`
+	RoundOff         float64 `json:"roundOff"`
+	MeterQty         *string `json:"meterQty"`
+	ClothType        string  `json:"clothType"`
+	QuantityInMeters string  `json:"quantityInMeters"`
+	IsReadymade      bool    `json:"isReadymade"`
+	IsSaree          bool    `json:"isSaree"`
 
 	Design struct {
-		Id   any    `json:"id"` // can be int or string
+		Id   any    `json:"id"`
 		Name string `json:"name"`
 	} `json:"design"`
 
@@ -795,13 +810,6 @@ type GRNItem struct {
 
 	ProductId   int    `json:"productId"`
 	ProductName string `json:"productName"`
-}
-
-type GRNPayload struct {
-	PoId       int       `json:"poId"`
-	SupplierId int       `json:"supplierId"`
-	BranchId   int       `json:"branchId"`
-	Items      []GRNItem `json:"items"`
 }
 
 func SafeInt(v any) *int {
@@ -882,31 +890,37 @@ func NewCreateGRNService(db *gorm.DB, payload GRNPayload) (map[string]interface{
 
 	now := time.Now().Format("2006-01-02 15:04:05")
 
-	// INSERT GRN HEADER
+	// ✅ INSERT GRN HEADER
 	var grnId int
 	err := db.Raw(`
-		INSERT INTO "PurchaseOrderManagement"."PurchaseOrderGRN"
-		(
-			"purchaseOrderId", "supplierId", "supplierName", branchid,
-			"branchCode", "poNumber", "grnDate", "totalReceivedQty", "createdAt"
-		)
-		SELECT 
-			po.id, 
-			po."supplierId",
-			s."supplierName",
-			po.branchid,
-			b."refBranchCode",
-			po.po_number,
-			?, ?, ?
-		FROM "PurchaseOrderManagement"."PurchaseOrders" po
-		JOIN public."Supplier" s ON s."supplierId" = po."supplierId"
-		JOIN public."Branches" b ON b."refBranchId" = po.branchid
-		WHERE po.id = ?
-		RETURNING id
+	INSERT INTO "PurchaseOrderManagement"."PurchaseOrderGRN"
+	(
+		"purchaseOrderId", "supplierId", "supplierName",
+		branchid, "branchCode", "poNumber",
+		"grnDate", "totalReceivedQty",
+		"taxRate", "taxAmount",
+		"createdAt", "createdBy"
+	)
+	SELECT 
+		po.id,
+		po."supplierId",
+		s."supplierName",
+		po.branchid,
+		b."refBranchCode",
+		po.po_number,
+		?, ?, ?, ?, ?, ?
+	FROM "PurchaseOrderManagement"."PurchaseOrders" po
+	JOIN public."Supplier" s ON s."supplierId" = po."supplierId"
+	JOIN public."Branches" b ON b."refBranchId" = po.branchid
+	WHERE po.id = ?
+	RETURNING id
 	`,
-		now,                                   // grnDate
-		fmt.Sprintf("%d", len(payload.Items)), // totalReceivedQty
-		now,                                   // createdAt
+		now,
+		fmt.Sprintf("%d", len(payload.Items)),
+		payload.TaxRate,
+		payload.TaxAmount,
+		now,
+		"admin",
 		payload.PoId,
 	).Scan(&grnId).Error
 
@@ -917,35 +931,35 @@ func NewCreateGRNService(db *gorm.DB, payload GRNPayload) (map[string]interface{
 
 	log.Infof("🆔 GRN Created with ID = %d", grnId)
 
-	// INSERT GRN ITEMS
+	// ✅ INSERT GRN ITEMS
 	for _, item := range payload.Items {
 
-		// 👉 Generate SKU per item
 		sku, err := GenerateSKU(db, time.Now().Year(), int(time.Now().Month()))
 		if err != nil {
 			return nil, err
 		}
 
 		err = db.Exec(`
-    INSERT INTO "PurchaseOrderManagement"."PurchaseOrderGRNItems"
-    (
-        "grnId", "purchaseOrderId", "supplierId",
-        "lineNo", "refNo",
-        "productId", "productName",
-        "designId", "designName",
-        "patternId", "patternName",
-        "varientId", "varientName",
-        "colorId", "colorName",
-        "sizeId", "sizeName",
-        cost, "profitPercent", total,
-        "createdAt", "createdBy",
-        "updatedAt", "updatedBy",
-        "productBranchId", "isDelete",
-        quantity,
-        sku
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`,
+			INSERT INTO "PurchaseOrderManagement"."PurchaseOrderGRNItems"
+			(
+				"grnId", "purchaseOrderId", "supplierId",
+				"lineNo", "refNo",
+				"productId", "productName",
+				"designId", "designName",
+				"patternId", "patternName",
+				"varientId", "varientName",
+				"colorId", "colorName",
+				"sizeId", "sizeName",
+				cost, "profitPercent", total,
+				"roundOff", "meterQty", "clothType",
+				"quantityInMeters", "isReadymade", "isSaree",
+				"createdAt", "createdBy",
+				"productBranchId", "isDelete",
+				quantity,
+				sku
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`,
 			grnId,
 			payload.PoId,
 			payload.SupplierId,
@@ -975,16 +989,22 @@ func NewCreateGRNService(db *gorm.DB, payload GRNPayload) (map[string]interface{
 			toString(item.ProfitPercent),
 			toString(item.Total),
 
-			now,     // createdAt
-			"admin", // createdBy (or roleName)
-			nil,     // updatedAt
-			nil,     // updatedBy
+			toString(item.RoundOff),
+			toString(item.MeterQty),
+			item.ClothType,
+
+			item.QuantityInMeters,
+			item.IsReadymade,
+			item.IsSaree,
+
+			now,
+			"admin",
 
 			payload.BranchId,
-			false, // isDelete
+			false,
 
-			1,   // quantity (default)
-			sku, // newly generated SKU
+			1,
+			sku,
 		).Error
 
 		if err != nil {
@@ -1275,7 +1295,12 @@ func GetSinglePOGRNItemsService(db *gorm.DB, poId string) []map[string]interface
             gi.quantity,
             gi.sku,
             gi."productBranchId",
-
+            gi."quantityInMeters",
+            gi."isReadymade",
+            gi."isSaree",
+            gi."clothType",
+            gi."meterQty",
+            gi."roundOff",
             gi."createdAt" AS itemCreatedAt,
             gi."updatedAt" AS itemUpdatedAt
 
