@@ -1682,30 +1682,6 @@ func AcceptStockIntakeService(db *gorm.DB, toBranchId int, items []StockItem) (i
 		return 0, fmt.Errorf("Failed updating GRN items: %v", updateGRN.Error)
 	}
 
-	// STEP 3: If branch == 4 → PUSH TO SHOPIFY
-	if toBranchId == 4 {
-		for _, sku := range skuList {
-
-			var product map[string]interface{}
-			err := db.Table(`"PurchaseOrderManagement"."PurchaseOrderGRNItems"`).
-				Where("sku = ?", sku).
-				First(&product).Error
-
-			if err != nil {
-				fmt.Println("⚠️ Product fetch failed for SKU:", sku)
-				continue
-			}
-
-			// Create Shopify product
-			err = PushProductToShopify(product)
-			if err != nil {
-				fmt.Println("⚠️ Shopify push failed for SKU:", sku, " → ", err)
-			} else {
-				fmt.Println("✅ Shopify push success for SKU:", sku)
-			}
-		}
-	}
-
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
 	}
@@ -1786,4 +1762,148 @@ func PushProductToShopify(p map[string]interface{}) error {
 	}
 
 	return nil
+}
+
+func GetSupplierBillAgeingReportService(db *gorm.DB) ([]map[string]interface{}, error) {
+	log := logger.InitLogger()
+	log.Info("🛠️ GetSupplierBillAgeingReportService invoked")
+
+	var list []map[string]interface{}
+
+	err := db.Raw(`
+		SELECT
+			po.branchid AS "Unit",
+
+			bi.grn_date AS "GRN Date",
+			bi."bundleInwardNumber" AS "GRN Number",
+
+			bib.bill_no AS "Supplier Invoice Number",
+			bib.bill_date AS "Invoice Date",
+
+			-- ✅ AGEING BY SUPPLIER BILL DATE
+			CURRENT_DATE - TO_DATE(bib.bill_date, 'Dy Mon DD YYYY')
+				AS "Ageing by Supplier Bill Date",
+
+			s."creditedDays" AS "Credit Days",
+
+			-- ✅ OVERDUE BY BILL DATE
+			(CURRENT_DATE - TO_DATE(bib.bill_date, 'Dy Mon DD YYYY'))
+			  - COALESCE(s."creditedDays", 0)
+				AS "Over Due by Bill Date"
+
+		FROM "BundleInOut".bundle_inwards bi
+
+		JOIN "BundleInOut".bundle_inward_bills bib 
+			ON bib.inward_id = bi.id
+
+		JOIN "PurchaseOrderManagement"."PurchaseOrders" po
+			ON po.id = bi.po_id
+
+		JOIN public."Supplier" s
+			ON s."supplierId" = bi.supplier_id
+
+		WHERE bi.bundle_status IS DISTINCT FROM 'Deleted'
+		ORDER BY bi.grn_date DESC;
+	`).Scan(&list).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	log.Infof("📊 Supplier bill ageing records found: %d", len(list))
+	return list, nil
+}
+
+func GetPurchaseOrderReportService(db *gorm.DB) ([]map[string]interface{}, error) {
+	log := logger.InitLogger()
+	log.Info("🛠️ GetPurchaseOrderReportService invoked")
+
+	var list []map[string]interface{}
+
+	err := db.Raw(`
+		SELECT
+		  g.branchid AS "Unit",
+		  'PURCHASE' AS "Type",
+		  g."poNumber" AS "GRN No.",
+		  g."grnDate" AS "GRN Dt.",
+		  g."supplierName" AS "Supplier Name",
+		  s."supplierGSTNumber" AS "GST Reg. No",
+		  NULL AS "Supplier Invoice No.",
+		  NULL AS "Invoice Date",
+		  po.po_number AS "PO #",
+		  po."createdAt" AS "PO Date",
+		  NULL AS "HSN Code",
+		  gi.sku AS "Item Code",
+		  gi."productName" AS "Item Name",
+		  c."categoryName" AS "Item Category",
+		  gi.quantity AS "Pack Qty",
+		  gi.cost::NUMERIC AS "Rate",
+		  gi.cost::NUMERIC AS "Selling Price",
+		  po."taxRate" AS "Tax %",
+		  NULL AS "MRP",
+		  gi."profitPercent"::NUMERIC AS "Margin %",
+		  gi.total::NUMERIC AS "Gross Amount",
+		  NULL AS "Discount",
+		  gi.total::NUMERIC AS "Base After Disc",
+		  
+		  -- ✅ CGST
+		  CASE
+		    WHEN po."taxRate" IS NOT NULL 
+		    THEN (gi.total::NUMERIC * po."taxRate"::NUMERIC / 100) / 2
+		    ELSE 0
+		  END AS "CGST",
+
+		  -- ✅ SGST
+		  CASE
+		    WHEN po."taxRate" IS NOT NULL 
+		    THEN (gi.total::NUMERIC * po."taxRate"::NUMERIC / 100) / 2
+		    ELSE 0
+		  END AS "SGST",
+
+		  -- ✅ IGST
+		  0 AS "IGST",
+
+		  -- ✅ TOTAL TAX AMOUNT
+		  CASE
+		    WHEN po."taxRate" IS NOT NULL 
+		    THEN gi.total::NUMERIC * po."taxRate"::NUMERIC / 100
+		    ELSE 0
+		  END AS "Tax Amount",
+
+		  gi.id AS "Entry ID",
+		  s."creditedDays" AS "Credit Days"
+
+		FROM
+		  "PurchaseOrderManagement"."PurchaseOrderGRNItems" gi
+
+		  JOIN "PurchaseOrderManagement"."PurchaseOrderGRN" g 
+		    ON g.id = gi."grnId"
+
+		  LEFT JOIN "PurchaseOrderManagement"."PurchaseOrders" po 
+		    ON po.id = gi."purchaseOrderId"
+
+		  LEFT JOIN public."Supplier" s 
+		    ON s."supplierId" = gi."supplierId"
+
+		  LEFT JOIN public."SettingsProducts" sp 
+		    ON sp.id = gi."productId"
+
+		  LEFT JOIN public."Categories" c 
+		    ON c."refCategoryid" = sp."categoryId"
+
+		WHERE
+		  gi."isDelete" = FALSE
+
+		ORDER BY
+		  g."grnDate" DESC,
+		  gi.id DESC;
+	`).Scan(&list).Error
+
+	if err != nil {
+		log.Error("❌ Failed to load purchase order report: " + err.Error())
+		return nil, err
+	}
+
+	log.Infof("📦 Purchase order report records found: %d", len(list))
+	return list, nil
 }

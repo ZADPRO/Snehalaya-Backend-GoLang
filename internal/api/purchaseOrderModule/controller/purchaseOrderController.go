@@ -11,6 +11,7 @@ import (
 	roleType "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/GetRoleType"
 	logger "github.com/ZADPRO/Snehalaya-Backend-GoLang/internal/helper/Logger"
 	"github.com/gin-gonic/gin"
+
 )
 
 // CREATE PURCHASE ORDER
@@ -794,6 +795,58 @@ func NewAcceptStockIntakeController() gin.HandlerFunc {
 			"status":  true,
 			"message": "Stock intake processed successfully",
 			"updated": updatedCount,
+		})
+	}
+}
+
+func GetSupplierBillAgeingReportController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📊 GetSupplierBillAgeingReportController invoked")
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		list, err := purchaseOrderService.GetSupplierBillAgeingReportService(dbConn)
+		if err != nil {
+			log.Error("❌ Failed loading supplier bill ageing report: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": false,
+				"error":  err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   list,
+		})
+	}
+}
+
+func GetPurchaseOrderReportController() gin.HandlerFunc {
+	log := logger.InitLogger()
+
+	return func(c *gin.Context) {
+		log.Info("📊 GetPurchaseOrderReportController invoked")
+
+		dbConn, sqlDB := db.InitDB()
+		defer sqlDB.Close()
+
+		list, err := purchaseOrderService.GetPurchaseOrderReportService(dbConn)
+		if err != nil {
+			log.Error("❌ Failed loading purchase order report: " + err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"status": false,
+				"error":  err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"status": true,
+			"data":   list,
 		})
 	}
 }

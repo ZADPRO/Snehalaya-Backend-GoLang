@@ -76,4 +76,18 @@ func PurhcaseOrderRoutes(router *gin.Engine) {
 		purchaseOrderController.NewAcceptStockIntakeController(),
 	)
 
+	// SUPPLIER BILL AGEING REPORT
+	route.GET(
+		"/getSupplierBillAgeingReport",
+		accesstoken.JWTMiddleware(),
+		purchaseOrderController.GetSupplierBillAgeingReportController(),
+	)
+
+	// PURCHASE ORDER REPORT
+	route.GET(
+		"/getPurchaseOrderReport",
+		accesstoken.JWTMiddleware(),
+		purchaseOrderController.GetPurchaseOrderReportController(),
+	)
+
 }

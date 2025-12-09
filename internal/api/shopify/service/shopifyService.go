@@ -91,13 +91,22 @@ func CreateProduct(product goshopify.Product) (*goshopify.Product, error) {
 			continue
 		}
 
-		// Adjust quantity
-		adjustReq := goshopify.InventoryLevelAdjustOptions{
+		log.Printf("\n\n\n\n\n\nInventory Qnty", variant.InventoryQuantity)
+
+		setReq := goshopify.InventoryLevel{
 			InventoryItemId: variant.InventoryItemId,
 			LocationId:      locationID,
-			Adjust:          variant.InventoryQuantity,
+			Available:       1,
 		}
-		_, err = client.InventoryLevel.Adjust(ctx, adjustReq)
+
+		_, err = client.InventoryLevel.Set(ctx, setReq)
+		if err != nil {
+			log.Printf("⚠️ Failed to set inventory for variant %d: %v\n", variant.Id, err)
+			continue
+		}
+
+		log.Printf("✅ Inventory SET to %d for variant %d\n", variant.InventoryQuantity, variant.Id)
+
 		if err != nil {
 			log.Printf("⚠️ Failed to adjust inventory for variant %d: %v\n", variant.Id, err)
 			continue
